@@ -61,6 +61,17 @@ This project is intended for installations, visual walls, live performance setup
    └─ script.js
 ```
 
+## Usage
+
+If using local files, this project must be served via a local web server — opening `index.html` directly as a `file:///` URL will block local file loading due to browser security restrictions.  
+If only using URLs, just open index.html in your browser.
+
+### Quick start with Python
+```bash
+python -m http.server 8080
+```
+
+Then open [http://localhost:8080](http://localhost:8080) in your browser.
 ---
 
 ## Controls
