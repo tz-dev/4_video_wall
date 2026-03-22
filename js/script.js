@@ -63,6 +63,25 @@ const configs = [
 
 const introMessage = "Load default config to start.";
 
+// All valid layout modes in cycling order
+const LAYOUT_MODES = ["4x1", "2x2", "2x1-left", "2x1-right"];
+
+// Human-readable labels for status messages and quick bar
+const LAYOUT_LABELS = {
+  "4x1":       "4×1",
+  "2x2":       "2×2",
+  "2x1-left":  "2L+2R",
+  "2x1-right": "2R+2L"
+};
+
+// Descriptions shown in the source-status line inside the HUD layout panel
+const LAYOUT_DESCRIPTIONS = {
+  "4x1":       "4 videos in a row",
+  "2x2":       "2×2 grid",
+  "2x1-left":  "Left: 2 above each other · right: 2 next to each other",
+  "2x1-right": "Left: 2 next to each other · right: 2 above each other"
+};
+
 const controls = document.getElementById("controls");
 const hud = document.getElementById("hud");
 const videoWall = document.getElementById("videoWall");
@@ -97,10 +116,11 @@ let actionOverlayTimer = null;
 let toastTimer = null;
 let quickBarTimer = null;
 let layoutSelect = null;
+let layoutDescStatus = null;
 let soloIndex = null;
 
 // ─── drag state ───────────────────────────────────────────────────────────────
-let dragState = null; // { cfg, video, startMouseX, startMouseY, startPanX, startPanY }
+let dragState = null;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -187,15 +207,8 @@ function safelyRevokeObjectUrl(cfg) {
 
 // ─── video positioning ────────────────────────────────────────────────────────
 
-/**
- * Apply panX/panY (0–100%) and zoom (100–300%) to a video element.
- * We use object-position to shift the visible frame within the cell when
- * zoom === 100 (object-fit: cover), and switch to a CSS transform approach
- * for zoom > 100 to allow true pan-and-zoom without changing layout.
- */
 function applyVideoPosition(cfg, video) {
   if (cfg.zoom <= 100) {
-    // Pure object-position pan — works great at native crop level
     video.style.objectPosition = `${cfg.panX}% ${cfg.panY}%`;
     video.style.transform = "";
     video.style.width = "100%";
@@ -204,14 +217,10 @@ function applyVideoPosition(cfg, video) {
     video.style.top = "";
     video.style.position = "";
   } else {
-    // Zoom + pan using transform: scale + translate on an absolutely-positioned element
     const scale = cfg.zoom / 100;
-    // translate range: at scale S, the video is S× larger.
-    // Maximum pan offset in each axis = ((S - 1) / 2) * cellSize / scale
-    // We express pan as percentage of the extra space.
-    const tx = (cfg.panX - 50) / 50; // -1 … +1
+    const tx = (cfg.panX - 50) / 50;
     const ty = (cfg.panY - 50) / 50;
-    const maxShift = ((scale - 1) / 2) * 100; // in % of original size
+    const maxShift = ((scale - 1) / 2) * 100;
     const shiftX = tx * maxShift;
     const shiftY = ty * maxShift;
 
@@ -240,10 +249,8 @@ function resetVideoPosition(cfg, video) {
 // ─── drag handlers ────────────────────────────────────────────────────────────
 
 function onCellPointerDown(e, cfg) {
-  // Only start drag with primary button, and only when HUD is hidden
   if (e.button !== 0) return;
   if (!hud.classList.contains("hidden")) return;
-  // Ignore clicks on the label or quick-bar children
   if (e.target.closest(".label, .quick-bar")) return;
 
   unlockPlayback();
@@ -276,9 +283,6 @@ function onCellPointerMove(e) {
   const cellW = cell.clientWidth || 1;
   const cellH = cell.clientHeight || 1;
 
-  // Sensitivity: moving the full width/height of the cell pans 100%.
-  // At zoom=100 (object-position), full pan = edge-to-edge of the "hidden" content.
-  // Invert direction so dragging right moves the frame right (feels natural).
   const sensitivity = cfg.zoom <= 100 ? 1 : cfg.zoom / 100;
   const panDeltaX = -(dx / cellW) * 100 * sensitivity;
   const panDeltaY = -(dy / cellH) * 100 * sensitivity;
@@ -350,19 +354,27 @@ function areAllPaused() {
 // ─── layout ───────────────────────────────────────────────────────────────────
 
 function applyLayoutMode(mode) {
-  const nextMode = mode === "2x2" ? "2x2" : "4x1";
+  // Validate; fall back to 4x1 for unknown/legacy values
+  const nextMode = LAYOUT_MODES.includes(mode) ? mode : "4x1";
   currentLayoutMode = nextMode;
-  videoWall.classList.toggle("layout-4x1", nextMode === "4x1");
-  videoWall.classList.toggle("layout-2x2", nextMode === "2x2");
+
+  // Remove all layout classes, then add the active one
+  videoWall.classList.remove(...LAYOUT_MODES.map((m) => `layout-${m}`));
+  videoWall.classList.add(`layout-${nextMode}`);
+
   if (layoutSelect) layoutSelect.value = nextMode;
-  quickLayoutBtn.textContent = nextMode;
+  if (layoutDescStatus) layoutDescStatus.textContent = LAYOUT_DESCRIPTIONS[nextMode] || "";
+
+  quickLayoutBtn.textContent = LAYOUT_LABELS[nextMode] || nextMode;
 }
 
 function toggleLayoutMode() {
-  const nextMode = currentLayoutMode === "4x1" ? "2x2" : "4x1";
+  const currentIndex = LAYOUT_MODES.indexOf(currentLayoutMode);
+  const nextIndex = (currentIndex + 1) % LAYOUT_MODES.length;
+  const nextMode = LAYOUT_MODES[nextIndex];
   applyLayoutMode(nextMode);
-  showActionIcon(nextMode === "2x2" ? "2×2" : "4×1");
-  setStatus(`Layout switched to ${nextMode}.`);
+  showActionIcon(LAYOUT_LABELS[nextMode] || nextMode);
+  setStatus(`Layout: ${LAYOUT_DESCRIPTIONS[nextMode] || nextMode}`);
 }
 
 function updateGlobalButtons() {
@@ -377,7 +389,7 @@ function updateGlobalButtons() {
   quickPauseBtn.textContent = paused ? "▶" : "⏸";
   quickMuteBtn.textContent = muted ? "🔇" : "🔊";
   quickFullscreenBtn.textContent = fullscreenActive ? "🡼" : "⛶";
-  quickLayoutBtn.textContent = currentLayoutMode;
+  quickLayoutBtn.textContent = LAYOUT_LABELS[currentLayoutMode] || currentLayoutMode;
 }
 
 // ─── quick bar ────────────────────────────────────────────────────────────────
@@ -412,20 +424,25 @@ function createLayoutUI() {
     <div class="source-row">
       <label>Layout</label>
       <select data-role="layoutMode">
-        <option value="4x1">4x1</option>
-        <option value="2x2">2x2</option>
+        <option value="4x1">4×1 — 4 videos in a row</option>
+        <option value="2x2">2×2 grid</option>
+        <option value="2x1-left">Left: 2 above each other · right: 2 next to each other</option>
+        <option value="2x1-right">Left: 2 next to each other · right: 2 above each other</option>
       </select>
-      <button type="button" data-action="toggleLayout">Toggle</button>
+      <button type="button" data-action="toggleLayout">Next</button>
     </div>
-    <div class="source-status">4x1 = one row · 2x2 = two rows. Drag videos to reposition when menu is closed. Scroll to zoom.</div>
+    <div class="source-status" data-role="layoutDesc"></div>
   `;
 
   layoutSelect = wrap.querySelector('[data-role="layoutMode"]');
+  layoutDescStatus = wrap.querySelector('[data-role="layoutDesc"]');
+
   layoutSelect.value = currentLayoutMode;
   layoutSelect.addEventListener("change", () => {
     applyLayoutMode(layoutSelect.value);
-    setStatus(`Layout switched to ${currentLayoutMode}.`);
+    setStatus(`Layout: ${LAYOUT_DESCRIPTIONS[currentLayoutMode] || currentLayoutMode}`);
   });
+
   wrap.querySelector('[data-action="toggleLayout"]').addEventListener("click", toggleLayoutMode);
   controls.appendChild(wrap);
 }
@@ -574,14 +591,12 @@ function createControlUI(cfg) {
     outLoopEnd.textContent = formatTime(cfg.loopEnd);
   }
 
-  // title
   titleInput.addEventListener("input", () => {
     cfg.title = titleInput.value.trim() || cfg.defaultTitle;
     titleHeading.textContent = cfg.title;
     updateLabel(cfg, video);
   });
 
-  // file
   wrap.querySelector('[data-action="loadFile"]').addEventListener("click", () => {
     const file = fileInput.files && fileInput.files[0];
     if (!file) { setStatus(`No local file selected for ${cfg.title}.`); return; }
@@ -591,7 +606,6 @@ function createControlUI(cfg) {
     setStatus(`Loaded local file for ${cfg.title}: ${file.name}`);
   });
 
-  // url
   wrap.querySelector('[data-action="loadUrl"]').addEventListener("click", () => {
     const url = urlInput.value.trim();
     if (!url) { setStatus(`No URL entered for ${cfg.title}.`); return; }
@@ -599,7 +613,6 @@ function createControlUI(cfg) {
     setStatus(`Loaded URL for ${cfg.title}.`);
   });
 
-  // volume
   volumeInput.addEventListener("input", () => {
     cfg.volume = Number(volumeInput.value);
     video.volume = cfg.volume;
@@ -634,35 +647,30 @@ function createControlUI(cfg) {
     applyLoopBounds();
   });
 
-  // seek
   seekInput.addEventListener("input", () => {
     if (!Number.isFinite(video.duration) || video.duration <= 0) return;
     video.currentTime = Number(seekInput.value);
     refreshCurrentTimeOutput();
   });
 
-  // zoom slider
   zoomInput.addEventListener("input", () => {
     cfg.zoom = Number(zoomInput.value);
     outZoom.textContent = `${cfg.zoom}%`;
     applyVideoPosition(cfg, video);
   });
 
-  // pan X slider
   panXInput.addEventListener("input", () => {
     cfg.panX = Number(panXInput.value);
     outPanX.textContent = `${cfg.panX.toFixed(0)}%`;
     applyVideoPosition(cfg, video);
   });
 
-  // pan Y slider
   panYInput.addEventListener("input", () => {
     cfg.panY = Number(panYInput.value);
     outPanY.textContent = `${cfg.panY.toFixed(0)}%`;
     applyVideoPosition(cfg, video);
   });
 
-  // play/pause
   togglePlayPauseBtn.addEventListener("click", () => {
     if (video.paused) video.play().catch(() => {});
     else video.pause();
@@ -1000,7 +1008,6 @@ async function toggleFullscreen() {
 createLayoutUI();
 configs.forEach((cfg) => createControlUI(cfg));
 
-// Attach drag and wheel handlers to each video-cell
 document.querySelectorAll(".video-cell").forEach((cell, index) => {
   const cfg = configs[index];
 
@@ -1018,7 +1025,6 @@ document.querySelectorAll(".video-cell").forEach((cell, index) => {
 
   cell.addEventListener("wheel", (e) => onCellWheel(e, cfg), { passive: false });
 
-  // Double-click to reset position
   cell.addEventListener("dblclick", () => {
     if (!hud.classList.contains("hidden")) return;
     resetVideoPosition(cfg, getVideoByConfig(cfg));
@@ -1112,7 +1118,7 @@ let cursorTimer;
 const CURSOR_HIDE_DELAY = 3000;
 
 function hideCursor() {
-  const style = document.getElementById('__cursorHideStyle') 
+  const style = document.getElementById('__cursorHideStyle')
     || Object.assign(document.createElement('style'), { id: '__cursorHideStyle' });
   style.textContent = '* { cursor: none !important; }';
   document.head.appendChild(style);

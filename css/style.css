@@ -31,6 +31,173 @@ body {
   grid-template-rows: repeat(2, 1fr);
 }
 
+/*
+  layout-2x1-left: Video 1+2 gestapelt links (1 Spalte, 2 Zeilen),
+                   Video 3+4 nebeneinander rechts (2 Spalten, 2 Zeilen).
+  Grid-Zuweisung über nth-child:
+    cell 1 → col 1, row 1
+    cell 2 → col 1, row 2
+    cell 3 → col 2, row 1 / span 2 rows  ← NEIN: wir wollen 3 oben-rechts, 4 unten-rechts
+  Tatsächliches Layout:
+    +-------+---+---+
+    |   1   | 3 | 4 |   ← Nein, Anforderung: links 2 Zeilen, rechts 2 Videos übereinander
+    |   2   |   |   |
+    +-------+---+---+
+  Anforderung re-gelesen:
+    "2 in 1 row links, 2 in 2 rows rechts"
+    → links: 2 Videos nebeneinander (1 Zeile, halbe Breite je), rechts: 2 Videos übereinander
+    +----+----+----+
+    | 1  | 2  | 3  |   ← Nein, "1 row links" = 2 Videos in EINER Zeile links
+    +----+----+----|
+    |         | 4  |
+    +---------+----+
+  Sinnvollste Interpretation:
+    layout-2x1-left:  linke Hälfte = 2 Videos in 1 Spalte (übereinander),
+                      rechte Hälfte = 2 Videos in 1 Spalte (übereinander)
+    → das wäre 2x2…
+
+  Zweite Interpretation (wahrscheinlich gemeint):
+    "2 in 1 row links" = linke Seite hat 1 großes Video (volle Höhe, halbe Breite)
+                         + zweites Video darunter → also 2 Videos übereinander links
+    "2 in 2 rows rechts" = rechte Seite hat 2 Videos übereinander
+
+  ODER die gebräuchlichste Video-Wall-Variante:
+    layout-2x1-left:
+      +----------+-----+
+      |    1     |  3  |
+      |  (volle  +-----+
+      |  Höhe)   |  4  |
+      +-----+----+-----+
+      |  2  |          ← Nein, zu komplex
+
+  Einfachste sinnvolle Interpretation für eine 4-Zellen-Wand:
+    "2 in 1 row links"   = Videos 1 & 2 nebeneinander, linke Bildschirmhälfte
+    "2 in 2 rows rechts" = Videos 3 & 4 übereinander, rechte Bildschirmhälfte
+
+  layout-2x1-left:
+    +----+----+----+
+    | 1  | 2  | 3  |
+    +---------+----|   ← nein
+    
+  Finale Entscheidung – klassische asymmetrische Video-Wall:
+    layout-2x1-left  ("2 Videos in 1 Zeile links, 2 Videos in 2 Zeilen rechts"):
+      Linke 2/3 : Videos 1 & 2 side-by-side (1 Zeile)
+      Rechte 1/3: Videos 3 & 4 übereinander (2 Zeilen)
+
+      Grid: 3 Spalten × 2 Zeilen
+        cell1: col 1, row 1-2 span  → Nein, wir haben 4 gleichwertige Zellen
+
+  ── Endgültig (pragmatisch, 4 gleich große Zellen, verschiedene Arrangements) ──
+
+  layout-2x1-left:
+    Linke Hälfte: Videos 1+2 in 2 Zeilen (übereinander) – "2 in 1 column links"
+    Rechte Hälfte: Videos 3+4 nebeneinander in 1 Zeile – "2 in 1 row rechts"
+    → gespiegelt zu layout-2x1-right
+
+  layout-2x1-right (gespiegelt):
+    Linke Hälfte: Videos 1+2 nebeneinander in 1 Zeile
+    Rechte Hälfte: Videos 3+4 in 2 Zeilen (übereinander)
+
+  Das ergibt die 4 sinnvollen Presets:
+    4x1          : alle 4 nebeneinander
+    2x2          : 2×2 Raster
+    2x1-left     : links 2 übereinander, rechts 2 nebeneinander
+    2x1-right    : links 2 nebeneinander, rechts 2 übereinander
+*/
+
+/*
+  layout-2x1-left:
+    Linke 50%  → Videos 1 + 2 nebeneinander, volle Höhe (row-span 2 each)
+    Rechte 50% → Videos 3 + 4 übereinander (2 Zeilen)
+
+    Grid: 4 Spalten × 2 Zeilen
+      cell 1: col 1–2, row 1–2
+      cell 2: col 3–4, row 1–2  ← das wäre falsch: 1+2 NEBENEINANDER = je 2 Spalten, volle Höhe
+      cell 3: col 3–4, row 1     → rechte Hälfte, obere Zeile
+      cell 4: col 3–4, row 2     → rechte Hälfte, untere Zeile
+
+    Korrekt:
+      cell 1: col 1–2, row 1–2  (linkes Video, volle Höhe)
+      cell 2: col 3–4, row 1–2  — NEIN, das ergibt 2 Videos je halbe Breite, volle Höhe
+                                   Das IST nebeneinander. Dann bräuchten wir 6 Spalten für rechts.
+
+    Tatsächlich: 4 Spalten reichen:
+      col 1  col 2  col 3  col 4
+      [ V1         ][ V3        ]   row 1
+      [ V2         ][ V4        ]   row 2
+    → Das ist 2x2 (identical).
+
+    Richtige Interpretation: "2 nebeneinander links" = die linke Hälfte zeigt 2 Videos
+    in einer Reihe (also sehr breite, kurze Videos). Rechts: 2 Videos übereinander.
+
+    Für eine saubere 50/50-Aufteilung mit dem richtigen Aspekt:
+      Grid: 4 Spalten × 2 Zeilen
+        V1: col 1, row 1–2  (linke 25%, volle Höhe)
+        V2: col 2, row 1–2  (zweite 25%, volle Höhe)
+        V3: col 3–4, row 1  (rechte 50%, obere Hälfte)
+        V4: col 3–4, row 2  (rechte 50%, untere Hälfte)
+*/
+.video-wall.layout-2x1-left {
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.video-wall.layout-2x1-left .video-cell:nth-child(1) {
+  grid-column: 1;
+  grid-row: 1 / 3;
+}
+
+.video-wall.layout-2x1-left .video-cell:nth-child(2) {
+  grid-column: 2;
+  grid-row: 1 / 3;
+}
+
+.video-wall.layout-2x1-left .video-cell:nth-child(3) {
+  grid-column: 3 / 5;
+  grid-row: 1;
+}
+
+.video-wall.layout-2x1-left .video-cell:nth-child(4) {
+  grid-column: 3 / 5;
+  grid-row: 2;
+}
+
+/*
+  layout-2x1-right (mirror):
+    Linke 50%  → Videos 1 + 2 übereinander
+    Rechte 50% → Videos 3 + 4 nebeneinander, volle Höhe
+
+    Grid: 4 Spalten × 2 Zeilen
+      V1: col 1–2, row 1
+      V2: col 1–2, row 2
+      V3: col 3,   row 1–2
+      V4: col 4,   row 1–2
+*/
+.video-wall.layout-2x1-right {
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.video-wall.layout-2x1-right .video-cell:nth-child(1) {
+  grid-column: 1 / 3;
+  grid-row: 1;
+}
+
+.video-wall.layout-2x1-right .video-cell:nth-child(2) {
+  grid-column: 1 / 3;
+  grid-row: 2;
+}
+
+.video-wall.layout-2x1-right .video-cell:nth-child(3) {
+  grid-column: 3;
+  grid-row: 1 / 3;
+}
+
+.video-wall.layout-2x1-right .video-cell:nth-child(4) {
+  grid-column: 4;
+  grid-row: 1 / 3;
+}
+
 .video-cell {
   position: relative;
   width: 100%;
@@ -39,6 +206,16 @@ body {
   background: #000;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: default;
+}
+
+/* Shown when HUD is hidden: indicate the cell is draggable */
+body:not(.show-labels) .video-cell {
+  cursor: grab;
+}
+
+body:not(.show-labels) .video-cell.dragging {
+  cursor: grabbing;
 }
 
 .video-wall.layout-4x1 .video-cell {
@@ -58,12 +235,44 @@ body {
   border-bottom: none;
 }
 
+/* 2x1-left border cleanup */
+.video-wall.layout-2x1-left .video-cell:nth-child(1),
+.video-wall.layout-2x1-left .video-cell:nth-child(2) {
+  border-bottom: none;
+}
+
+.video-wall.layout-2x1-left .video-cell:nth-child(3) {
+  border-right: none;
+}
+
+.video-wall.layout-2x1-left .video-cell:nth-child(4) {
+  border-right: none;
+  border-bottom: none;
+}
+
+/* 2x1-right border cleanup */
+.video-wall.layout-2x1-right .video-cell:nth-child(1) {
+  border-bottom: none;
+}
+
+.video-wall.layout-2x1-right .video-cell:nth-child(2) {
+  border-bottom: none;
+}
+
+.video-wall.layout-2x1-right .video-cell:nth-child(3),
+.video-wall.layout-2x1-right .video-cell:nth-child(4) {
+  border-right: none;
+  border-bottom: none;
+}
+
 video {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
   background: #000;
+  will-change: transform, object-position;
+  pointer-events: none;
 }
 
 .label {
@@ -77,11 +286,14 @@ video {
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.2s ease;
+  z-index: 2;
 }
 
 body.show-labels .label {
   opacity: 1;
 }
+
+/* ── HUD ────────────────────────────────────────────────────────── */
 
 .hud {
   position: fixed;
@@ -146,6 +358,8 @@ body.show-labels .label {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+/* ── video control panels ────────────────────────────────────────── */
+
 .video-controls {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
@@ -173,7 +387,8 @@ body.show-labels .label {
 
 .row label,
 .source-row label,
-.loop-field label {
+.loop-field label,
+.pan-field label {
   font-size: 12px;
   opacity: 0.9;
 }
@@ -187,12 +402,14 @@ body.show-labels .label {
 .source-row input[type="url"],
 .source-row input[type="file"],
 .source-row select,
-.loop-field input[type="number"] {
+.loop-field input[type="number"],
+.pan-field input[type="range"] {
   width: 100%;
 }
 
 .row output,
-.loop-field output {
+.loop-field output,
+.pan-field output {
   text-align: right;
   font-size: 12px;
   opacity: 0.9;
@@ -221,6 +438,24 @@ body.show-labels .label {
 }
 
 .loop-field label {
+  grid-column: 1 / -1;
+}
+
+.pan-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.pan-field {
+  display: grid;
+  grid-template-columns: 1fr 52px;
+  gap: 8px;
+  align-items: center;
+}
+
+.pan-field label {
   grid-column: 1 / -1;
 }
 
@@ -271,6 +506,8 @@ select:hover {
   font-size: 18px;
   line-height: 1;
 }
+
+/* ── overlays ─────────────────────────────────────────────────────── */
 
 .overlay {
   position: fixed;
@@ -330,6 +567,8 @@ select:hover {
   backdrop-filter: blur(6px);
 }
 
+/* ── toast ────────────────────────────────────────────────────────── */
+
 .toast {
   position: fixed;
   left: 50%;
@@ -352,6 +591,8 @@ select:hover {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+/* ── quick bar ────────────────────────────────────────────────────── */
 
 .quick-bar {
   position: fixed;
@@ -384,9 +625,11 @@ code {
   font-family: Consolas, Monaco, monospace;
 }
 
+/* ── solo mode ────────────────────────────────────────────────────── */
+
 .video-wall.solo-mode {
-  grid-template-columns: 1fr;
-  grid-template-rows: 1fr;
+  grid-template-columns: 1fr !important;
+  grid-template-rows: 1fr !important;
 }
 
 .video-wall.solo-mode .video-cell {
@@ -399,6 +642,8 @@ code {
   display: flex;
   align-items: center;
   justify-content: center;
+  grid-column: 1 !important;
+  grid-row: 1 !important;
 }
 
 .video-wall.solo-mode .video-cell.solo-visible video {
@@ -408,12 +653,16 @@ code {
   object-fit: contain;
 }
 
+/* ── responsive ───────────────────────────────────────────────────── */
+
 @media (max-width: 760px) {
-  .loop-row {
+  .loop-row,
+  .pan-row {
     grid-template-columns: 1fr;
   }
 
-  .loop-field {
+  .loop-field,
+  .pan-field {
     grid-template-columns: 1fr 90px;
   }
 }
