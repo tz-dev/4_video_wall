@@ -469,12 +469,12 @@ function createControlUI(cfg) {
     <div class="loop-row">
       <div class="loop-field">
         <label>Loop Start</label>
-        <input type="number" min="0" step="0.01" value="${cfg.loopStart}" data-role="loopStart">
+        <input type="text" inputmode="decimal" value="${cfg.loopStart}" data-role="loopStart">
         <output data-out="loopStart">${formatTime(cfg.loopStart)}</output>
       </div>
       <div class="loop-field">
         <label>Loop End</label>
-        <input type="number" min="0" step="0.01" value="${cfg.loopEnd}" data-role="loopEnd">
+        <input type="text" inputmode="decimal" value="${cfg.loopEnd}" data-role="loopEnd">
         <output data-out="loopEnd">${formatTime(cfg.loopEnd)}</output>
       </div>
     </div>
@@ -606,22 +606,31 @@ function createControlUI(cfg) {
     outVolume.textContent = cfg.volume.toFixed(2);
   });
 
-  // loop
-  loopStartInput.addEventListener("input", () => {
-    cfg.loopStart = Number(loopStartInput.value);
+  function sanitizeLoopInput(input) {
+    input.value = input.value.replace(/[^0-9.]/g, "").replace(/^(\d*\.?\d*).*$/, "$1");
+  }
+
+  loopStartInput.addEventListener("input", () => sanitizeLoopInput(loopStartInput));
+  loopStartInput.addEventListener("change", () => {
+    let val = parseFloat(loopStartInput.value);
+    if (!isFinite(val) || val < 0) val = 0;
+    cfg.loopStart = Number(val.toFixed(2));
     if (cfg.loopStart >= cfg.loopEnd) {
       cfg.loopStart = Math.max(0, Number((cfg.loopEnd - 0.05).toFixed(2)));
-      loopStartInput.value = cfg.loopStart;
     }
+    loopStartInput.value = cfg.loopStart;
     applyLoopBounds();
   });
 
-  loopEndInput.addEventListener("input", () => {
-    cfg.loopEnd = Number(loopEndInput.value);
+  loopEndInput.addEventListener("input", () => sanitizeLoopInput(loopEndInput));
+  loopEndInput.addEventListener("change", () => {
+    let val = parseFloat(loopEndInput.value);
+    if (!isFinite(val) || val < 0) val = 0;
+    cfg.loopEnd = Number(val.toFixed(2));
     if (cfg.loopEnd <= cfg.loopStart) {
       cfg.loopEnd = Number((cfg.loopStart + 0.05).toFixed(2));
-      loopEndInput.value = cfg.loopEnd;
     }
+    loopEndInput.value = cfg.loopEnd;
     applyLoopBounds();
   });
 
