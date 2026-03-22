@@ -9,7 +9,10 @@ const configs = [
     sourceMode: "url",
     sourceValue: "1.mp4",
     sourceFileName: "",
-    objectUrl: null
+    objectUrl: null,
+    panX: 50,
+    panY: 50,
+    zoom: 100
   },
   {
     id: "video2",
@@ -21,7 +24,10 @@ const configs = [
     sourceMode: "url",
     sourceValue: "2.mp4",
     sourceFileName: "",
-    objectUrl: null
+    objectUrl: null,
+    panX: 50,
+    panY: 50,
+    zoom: 100
   },
   {
     id: "video3",
@@ -33,7 +39,10 @@ const configs = [
     sourceMode: "url",
     sourceValue: "3.mp4",
     sourceFileName: "",
-    objectUrl: null
+    objectUrl: null,
+    panX: 50,
+    panY: 50,
+    zoom: 100
   },
   {
     id: "video4",
@@ -45,7 +54,10 @@ const configs = [
     sourceMode: "url",
     sourceValue: "4.mp4",
     sourceFileName: "",
-    objectUrl: null
+    objectUrl: null,
+    panX: 50,
+    panY: 50,
+    zoom: 100
   }
 ];
 
@@ -87,6 +99,9 @@ let quickBarTimer = null;
 let layoutSelect = null;
 let soloIndex = null;
 
+// ─── drag state ───────────────────────────────────────────────────────────────
+let dragState = null; // { cfg, video, startMouseX, startMouseY, startPanX, startPanY }
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -100,9 +115,7 @@ function formatTime(sec) {
 
 function formatDurationInfo(current, duration) {
   const currentText = formatTime(current);
-  if (!Number.isFinite(duration) || duration <= 0) {
-    return currentText;
-  }
+  if (!Number.isFinite(duration) || duration <= 0) return currentText;
   return `${currentText} (${formatTime(duration)})`;
 }
 
@@ -121,7 +134,6 @@ function showActionIcon(icon) {
   actionIcon.textContent = icon;
   actionOverlay.classList.add("visible");
   actionOverlay.setAttribute("aria-hidden", "false");
-
   actionOverlayTimer = setTimeout(() => {
     actionOverlay.classList.remove("visible");
     actionOverlay.setAttribute("aria-hidden", "true");
@@ -132,27 +144,17 @@ function showToast(message) {
   clearTimeout(toastTimer);
   toast.textContent = message;
   toast.classList.add("visible");
-
-  toastTimer = setTimeout(() => {
-    toast.classList.remove("visible");
-  }, 2000);
+  toastTimer = setTimeout(() => toast.classList.remove("visible"), 2000);
 }
 
 function setHudVisible(isVisible) {
   hud.classList.toggle("hidden", !isVisible);
   document.body.classList.toggle("show-labels", isVisible);
-
-  if (isVisible) {
-    hideQuickBar();
-  }
+  if (isVisible) hideQuickBar();
 }
 
 function toggleHud(force) {
-  if (typeof force === "boolean") {
-    setHudVisible(force);
-    return;
-  }
-
+  if (typeof force === "boolean") { setHudVisible(force); return; }
   setHudVisible(hud.classList.contains("hidden"));
 }
 
@@ -162,7 +164,6 @@ function toggleHelp(force) {
     helpOverlay.setAttribute("aria-hidden", String(!force));
     return;
   }
-
   const shouldShow = helpOverlay.classList.contains("hidden");
   helpOverlay.classList.toggle("hidden", !shouldShow);
   helpOverlay.setAttribute("aria-hidden", String(!shouldShow));
@@ -181,25 +182,147 @@ function updateLabel(cfg, video) {
 }
 
 function safelyRevokeObjectUrl(cfg) {
-  if (cfg.objectUrl) {
-    URL.revokeObjectURL(cfg.objectUrl);
-    cfg.objectUrl = null;
+  if (cfg.objectUrl) { URL.revokeObjectURL(cfg.objectUrl); cfg.objectUrl = null; }
+}
+
+// ─── video positioning ────────────────────────────────────────────────────────
+
+/**
+ * Apply panX/panY (0–100%) and zoom (100–300%) to a video element.
+ * We use object-position to shift the visible frame within the cell when
+ * zoom === 100 (object-fit: cover), and switch to a CSS transform approach
+ * for zoom > 100 to allow true pan-and-zoom without changing layout.
+ */
+function applyVideoPosition(cfg, video) {
+  if (cfg.zoom <= 100) {
+    // Pure object-position pan — works great at native crop level
+    video.style.objectPosition = `${cfg.panX}% ${cfg.panY}%`;
+    video.style.transform = "";
+    video.style.width = "100%";
+    video.style.height = "100%";
+    video.style.left = "";
+    video.style.top = "";
+    video.style.position = "";
+  } else {
+    // Zoom + pan using transform: scale + translate on an absolutely-positioned element
+    const scale = cfg.zoom / 100;
+    // translate range: at scale S, the video is S× larger.
+    // Maximum pan offset in each axis = ((S - 1) / 2) * cellSize / scale
+    // We express pan as percentage of the extra space.
+    const tx = (cfg.panX - 50) / 50; // -1 … +1
+    const ty = (cfg.panY - 50) / 50;
+    const maxShift = ((scale - 1) / 2) * 100; // in % of original size
+    const shiftX = tx * maxShift;
+    const shiftY = ty * maxShift;
+
+    video.style.objectPosition = "50% 50%";
+    video.style.position = "absolute";
+    video.style.left = "0";
+    video.style.top = "0";
+    video.style.width = "100%";
+    video.style.height = "100%";
+    video.style.transform = `scale(${scale}) translate(${shiftX}%, ${shiftY}%)`;
+    video.style.transformOrigin = "center center";
   }
 }
 
+function resetVideoPosition(cfg, video) {
+  cfg.panX = 50;
+  cfg.panY = 50;
+  cfg.zoom = 100;
+  applyVideoPosition(cfg, video);
+  if (cfg.ui) {
+    cfg.ui.zoomInput.value = cfg.zoom;
+    cfg.ui.outZoom.textContent = `${cfg.zoom}%`;
+  }
+}
+
+// ─── drag handlers ────────────────────────────────────────────────────────────
+
+function onCellPointerDown(e, cfg) {
+  // Only start drag with primary button, and only when HUD is hidden
+  if (e.button !== 0) return;
+  if (!hud.classList.contains("hidden")) return;
+  // Ignore clicks on the label or quick-bar children
+  if (e.target.closest(".label, .quick-bar")) return;
+
+  unlockPlayback();
+
+  const video = getVideoByConfig(cfg);
+  dragState = {
+    cfg,
+    video,
+    startMouseX: e.clientX,
+    startMouseY: e.clientY,
+    startPanX: cfg.panX,
+    startPanY: cfg.panY,
+    moved: false
+  };
+
+  e.currentTarget.setPointerCapture(e.pointerId);
+  e.currentTarget.classList.add("dragging");
+}
+
+function onCellPointerMove(e) {
+  if (!dragState) return;
+  const { cfg, video, startMouseX, startMouseY, startPanX, startPanY } = dragState;
+
+  const dx = e.clientX - startMouseX;
+  const dy = e.clientY - startMouseY;
+
+  if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragState.moved = true;
+
+  const cell = e.currentTarget;
+  const cellW = cell.clientWidth || 1;
+  const cellH = cell.clientHeight || 1;
+
+  // Sensitivity: moving the full width/height of the cell pans 100%.
+  // At zoom=100 (object-position), full pan = edge-to-edge of the "hidden" content.
+  // Invert direction so dragging right moves the frame right (feels natural).
+  const sensitivity = cfg.zoom <= 100 ? 1 : cfg.zoom / 100;
+  const panDeltaX = -(dx / cellW) * 100 * sensitivity;
+  const panDeltaY = -(dy / cellH) * 100 * sensitivity;
+
+  cfg.panX = clamp(startPanX + panDeltaX, 0, 100);
+  cfg.panY = clamp(startPanY + panDeltaY, 0, 100);
+
+  applyVideoPosition(cfg, video);
+}
+
+function onCellPointerUp(e) {
+  if (!dragState) return;
+  const cell = e.currentTarget;
+  cell.releasePointerCapture(e.pointerId);
+  cell.classList.remove("dragging");
+  dragState = null;
+}
+
+// ─── scroll-to-zoom on cell ───────────────────────────────────────────────────
+
+function onCellWheel(e, cfg) {
+  if (!hud.classList.contains("hidden")) return;
+  e.preventDefault();
+
+  const video = getVideoByConfig(cfg);
+  const delta = e.deltaY > 0 ? -10 : 10;
+  cfg.zoom = clamp((cfg.zoom || 100) + delta, 100, 300);
+  applyVideoPosition(cfg, video);
+
+  if (cfg.ui) {
+    cfg.ui.zoomInput.value = cfg.zoom;
+    cfg.ui.outZoom.textContent = `${cfg.zoom}%`;
+  }
+}
+
+// ─── source & label ──────────────────────────────────────────────────────────
+
 function setVideoSource(video, cfg, src, statusEl, options = {}) {
-  const {
-    mode = "url",
-    sourceValue = src,
-    sourceFileName = ""
-  } = options;
+  const { mode = "url", sourceValue = src, sourceFileName = "" } = options;
 
   safelyRevokeObjectUrl(cfg);
-
   video.pause();
   video.removeAttribute("src");
   video.load();
-
   video.src = src;
   video.load();
 
@@ -208,11 +331,9 @@ function setVideoSource(video, cfg, src, statusEl, options = {}) {
   cfg.sourceFileName = sourceFileName;
 
   if (statusEl) {
-    if (mode === "file") {
-      statusEl.textContent = `Source: local file (${sourceFileName || "selected"})`;
-    } else {
-      statusEl.textContent = `Source: ${sourceValue}`;
-    }
+    statusEl.textContent = mode === "file"
+      ? `Source: local file (${sourceFileName || "selected"})`
+      : `Source: ${sourceValue}`;
   }
 
   updateLabel(cfg, video);
@@ -226,17 +347,14 @@ function areAllPaused() {
   return configs.every((cfg) => getVideoByConfig(cfg).paused);
 }
 
+// ─── layout ───────────────────────────────────────────────────────────────────
+
 function applyLayoutMode(mode) {
   const nextMode = mode === "2x2" ? "2x2" : "4x1";
   currentLayoutMode = nextMode;
-
   videoWall.classList.toggle("layout-4x1", nextMode === "4x1");
   videoWall.classList.toggle("layout-2x2", nextMode === "2x2");
-
-  if (layoutSelect) {
-    layoutSelect.value = nextMode;
-  }
-
+  if (layoutSelect) layoutSelect.value = nextMode;
   quickLayoutBtn.textContent = nextMode;
 }
 
@@ -262,25 +380,20 @@ function updateGlobalButtons() {
   quickLayoutBtn.textContent = currentLayoutMode;
 }
 
-function showQuickBar() {
-  if (!hud.classList.contains("hidden")) {
-    return;
-  }
+// ─── quick bar ────────────────────────────────────────────────────────────────
 
+function showQuickBar() {
+  if (!hud.classList.contains("hidden")) return;
   clearTimeout(quickBarTimer);
   quickBar.classList.remove("hidden");
   quickBar.classList.add("visible");
   quickBar.setAttribute("aria-hidden", "false");
-
-  quickBarTimer = setTimeout(() => {
-    hideQuickBar();
-  }, 2000);
+  quickBarTimer = setTimeout(hideQuickBar, 2000);
 }
 
 function hideQuickBar() {
   clearTimeout(quickBarTimer);
   quickBar.classList.remove("visible");
-
   setTimeout(() => {
     if (!quickBar.classList.contains("visible")) {
       quickBar.classList.add("hidden");
@@ -289,10 +402,11 @@ function hideQuickBar() {
   }, 250);
 }
 
+// ─── UI creation ─────────────────────────────────────────────────────────────
+
 function createLayoutUI() {
   const wrap = document.createElement("div");
   wrap.className = "video-controls";
-
   wrap.innerHTML = `
     <h3>Viewport</h3>
     <div class="source-row">
@@ -303,23 +417,16 @@ function createLayoutUI() {
       </select>
       <button type="button" data-action="toggleLayout">Toggle</button>
     </div>
-    <div class="source-status">4x1 = one row with four videos. 2x2 = two rows with two videos.</div>
+    <div class="source-status">4x1 = one row · 2x2 = two rows. Drag videos to reposition when menu is closed. Scroll to zoom.</div>
   `;
 
   layoutSelect = wrap.querySelector('[data-role="layoutMode"]');
-  const toggleLayoutBtn = wrap.querySelector('[data-action="toggleLayout"]');
-
   layoutSelect.value = currentLayoutMode;
-
   layoutSelect.addEventListener("change", () => {
     applyLayoutMode(layoutSelect.value);
     setStatus(`Layout switched to ${currentLayoutMode}.`);
   });
-
-  toggleLayoutBtn.addEventListener("click", () => {
-    toggleLayoutMode();
-  });
-
+  wrap.querySelector('[data-action="toggleLayout"]').addEventListener("click", toggleLayoutMode);
   controls.appendChild(wrap);
 }
 
@@ -365,7 +472,6 @@ function createControlUI(cfg) {
         <input type="number" min="0" step="0.01" value="${cfg.loopStart}" data-role="loopStart">
         <output data-out="loopStart">${formatTime(cfg.loopStart)}</output>
       </div>
-
       <div class="loop-field">
         <label>Loop End</label>
         <input type="number" min="0" step="0.01" value="${cfg.loopEnd}" data-role="loopEnd">
@@ -379,11 +485,31 @@ function createControlUI(cfg) {
       <output data-out="currentTime">0:00.00</output>
     </div>
 
+    <div class="row">
+      <label>Zoom</label>
+      <input type="range" min="100" max="300" step="1" value="${cfg.zoom}" data-role="zoom">
+      <output data-out="zoom">${cfg.zoom}%</output>
+    </div>
+
+    <div class="pan-row">
+      <div class="pan-field">
+        <label>Pan X</label>
+        <input type="range" min="0" max="100" step="0.5" value="${cfg.panX}" data-role="panX">
+        <output data-out="panX">${cfg.panX.toFixed(0)}%</output>
+      </div>
+      <div class="pan-field">
+        <label>Pan Y</label>
+        <input type="range" min="0" max="100" step="0.5" value="${cfg.panY}" data-role="panY">
+        <output data-out="panY">${cfg.panY.toFixed(0)}%</output>
+      </div>
+    </div>
+
     <div class="actions">
       <button type="button" data-action="togglePlayPause">Pause</button>
       <button type="button" data-action="jumpStart">Jump to Loop Start</button>
       <button type="button" data-action="setStartHere">Set Start = Now</button>
       <button type="button" data-action="setEndHere">Set End = Now</button>
+      <button type="button" data-action="resetPosition">Reset Position</button>
     </div>
   `;
 
@@ -396,11 +522,17 @@ function createControlUI(cfg) {
   const loopStartInput = wrap.querySelector('[data-role="loopStart"]');
   const loopEndInput = wrap.querySelector('[data-role="loopEnd"]');
   const seekInput = wrap.querySelector('[data-role="seek"]');
+  const zoomInput = wrap.querySelector('[data-role="zoom"]');
+  const panXInput = wrap.querySelector('[data-role="panX"]');
+  const panYInput = wrap.querySelector('[data-role="panY"]');
 
   const outVolume = wrap.querySelector('[data-out="volume"]');
   const outLoopStart = wrap.querySelector('[data-out="loopStart"]');
   const outLoopEnd = wrap.querySelector('[data-out="loopEnd"]');
   const outCurrentTime = wrap.querySelector('[data-out="currentTime"]');
+  const outZoom = wrap.querySelector('[data-out="zoom"]');
+  const outPanX = wrap.querySelector('[data-out="panX"]');
+  const outPanY = wrap.querySelector('[data-out="panY"]');
 
   const togglePlayPauseBtn = wrap.querySelector('[data-action="togglePlayPause"]');
   const toggleMuteBtn = wrap.querySelector('[data-action="toggleMute"]');
@@ -423,61 +555,58 @@ function createControlUI(cfg) {
     outCurrentTime.textContent = formatDurationInfo(video.currentTime, video.duration);
   }
 
+  function refreshPositionOutputs() {
+    panXInput.value = cfg.panX;
+    panYInput.value = cfg.panY;
+    zoomInput.value = cfg.zoom;
+    outPanX.textContent = `${cfg.panX.toFixed(0)}%`;
+    outPanY.textContent = `${cfg.panY.toFixed(0)}%`;
+    outZoom.textContent = `${cfg.zoom}%`;
+  }
+
   function applyLoopBounds() {
     if (cfg.loopStart >= cfg.loopEnd) {
       cfg.loopEnd = Number((cfg.loopStart + 0.05).toFixed(2));
       loopEndInput.value = cfg.loopEnd;
       outLoopEnd.textContent = formatTime(cfg.loopEnd);
     }
-
     outLoopStart.textContent = formatTime(cfg.loopStart);
     outLoopEnd.textContent = formatTime(cfg.loopEnd);
   }
 
+  // title
   titleInput.addEventListener("input", () => {
     cfg.title = titleInput.value.trim() || cfg.defaultTitle;
     titleHeading.textContent = cfg.title;
     updateLabel(cfg, video);
   });
 
+  // file
   wrap.querySelector('[data-action="loadFile"]').addEventListener("click", () => {
     const file = fileInput.files && fileInput.files[0];
-    if (!file) {
-      setStatus(`No local file selected for ${cfg.title}.`);
-      return;
-    }
-
+    if (!file) { setStatus(`No local file selected for ${cfg.title}.`); return; }
     const objectUrl = URL.createObjectURL(file);
     cfg.objectUrl = objectUrl;
-    setVideoSource(video, cfg, objectUrl, sourceStatus, {
-      mode: "file",
-      sourceValue: "",
-      sourceFileName: file.name
-    });
+    setVideoSource(video, cfg, objectUrl, sourceStatus, { mode: "file", sourceValue: "", sourceFileName: file.name });
     setStatus(`Loaded local file for ${cfg.title}: ${file.name}`);
   });
 
+  // url
   wrap.querySelector('[data-action="loadUrl"]').addEventListener("click", () => {
     const url = urlInput.value.trim();
-    if (!url) {
-      setStatus(`No URL entered for ${cfg.title}.`);
-      return;
-    }
-
-    setVideoSource(video, cfg, url, sourceStatus, {
-      mode: "url",
-      sourceValue: url,
-      sourceFileName: ""
-    });
+    if (!url) { setStatus(`No URL entered for ${cfg.title}.`); return; }
+    setVideoSource(video, cfg, url, sourceStatus, { mode: "url", sourceValue: url, sourceFileName: "" });
     setStatus(`Loaded URL for ${cfg.title}.`);
   });
 
+  // volume
   volumeInput.addEventListener("input", () => {
     cfg.volume = Number(volumeInput.value);
     video.volume = cfg.volume;
     outVolume.textContent = cfg.volume.toFixed(2);
   });
 
+  // loop
   loopStartInput.addEventListener("input", () => {
     cfg.loopStart = Number(loopStartInput.value);
     if (cfg.loopStart >= cfg.loopEnd) {
@@ -496,20 +625,38 @@ function createControlUI(cfg) {
     applyLoopBounds();
   });
 
+  // seek
   seekInput.addEventListener("input", () => {
-    if (!Number.isFinite(video.duration) || video.duration <= 0) {
-      return;
-    }
+    if (!Number.isFinite(video.duration) || video.duration <= 0) return;
     video.currentTime = Number(seekInput.value);
     refreshCurrentTimeOutput();
   });
 
+  // zoom slider
+  zoomInput.addEventListener("input", () => {
+    cfg.zoom = Number(zoomInput.value);
+    outZoom.textContent = `${cfg.zoom}%`;
+    applyVideoPosition(cfg, video);
+  });
+
+  // pan X slider
+  panXInput.addEventListener("input", () => {
+    cfg.panX = Number(panXInput.value);
+    outPanX.textContent = `${cfg.panX.toFixed(0)}%`;
+    applyVideoPosition(cfg, video);
+  });
+
+  // pan Y slider
+  panYInput.addEventListener("input", () => {
+    cfg.panY = Number(panYInput.value);
+    outPanY.textContent = `${cfg.panY.toFixed(0)}%`;
+    applyVideoPosition(cfg, video);
+  });
+
+  // play/pause
   togglePlayPauseBtn.addEventListener("click", () => {
-    if (video.paused) {
-      video.play().catch(() => {});
-    } else {
-      video.pause();
-    }
+    if (video.paused) video.play().catch(() => {});
+    else video.pause();
   });
 
   wrap.querySelector('[data-action="jumpStart"]').addEventListener("click", () => {
@@ -537,6 +684,12 @@ function createControlUI(cfg) {
     applyLoopBounds();
   });
 
+  wrap.querySelector('[data-action="resetPosition"]').addEventListener("click", () => {
+    resetVideoPosition(cfg, video);
+    refreshPositionOutputs();
+    setStatus(`${cfg.title}: position reset.`);
+  });
+
   toggleMuteBtn.addEventListener("click", () => {
     video.muted = !video.muted;
     refreshMuteState();
@@ -562,15 +715,11 @@ function createControlUI(cfg) {
       seekInput.max = video.duration;
       seekInput.value = video.currentTime;
     }
-
     refreshCurrentTimeOutput();
-
     if (video.currentTime >= cfg.loopEnd) {
       video.currentTime = cfg.loopStart;
       refreshCurrentTimeOutput();
-      if (!video.paused) {
-        video.play().catch(() => {});
-      }
+      if (!video.paused) video.play().catch(() => {});
     }
   });
 
@@ -586,27 +735,37 @@ function createControlUI(cfg) {
     loopStartInput,
     loopEndInput,
     volumeInput,
+    zoomInput,
+    panXInput,
+    panYInput,
     outLoopStart,
     outLoopEnd,
     outVolume,
     outCurrentTime,
+    outZoom,
+    outPanX,
+    outPanY,
     refreshMuteState,
     refreshPlayPauseButton,
-    refreshCurrentTimeOutput
+    refreshCurrentTimeOutput,
+    refreshPositionOutputs
   };
 
   controls.appendChild(wrap);
   video.volume = cfg.volume;
   video.muted = false;
+  applyVideoPosition(cfg, video);
   refreshMuteState();
   refreshPlayPauseButton();
   refreshCurrentTimeOutput();
   updateLabel(cfg, video);
 }
 
+// ─── config serialization ─────────────────────────────────────────────────────
+
 function getSerializableConfig() {
   return {
-    version: 2,
+    version: 3,
     name: currentConfigName,
     layoutMode: currentLayoutMode,
     exportedAt: new Date().toISOString(),
@@ -619,7 +778,10 @@ function getSerializableConfig() {
       loopStart: cfg.loopStart,
       loopEnd: cfg.loopEnd,
       volume: cfg.volume,
-      muted: getVideoByConfig(cfg).muted
+      muted: getVideoByConfig(cfg).muted,
+      panX: cfg.panX,
+      panY: cfg.panY,
+      zoom: cfg.zoom
     }))
   };
 }
@@ -637,18 +799,14 @@ function saveConfigToFile() {
 }
 
 function applyLoadedConfig(parsed, options = {}) {
-  if (!parsed || !Array.isArray(parsed.videos)) {
-    throw new Error("Invalid config file format.");
-  }
+  if (!parsed || !Array.isArray(parsed.videos)) throw new Error("Invalid config file format.");
 
   setDocumentTitle(parsed.name || options.fallbackName || "4 Video Wall");
   applyLayoutMode(parsed.layoutMode || "4x1");
 
   parsed.videos.forEach((savedCfg) => {
     const cfg = configs.find((item) => item.id === savedCfg.id);
-    if (!cfg) {
-      return;
-    }
+    if (!cfg) return;
 
     const video = getVideoByConfig(cfg);
 
@@ -659,6 +817,9 @@ function applyLoadedConfig(parsed, options = {}) {
     cfg.sourceMode = savedCfg.sourceMode || "url";
     cfg.sourceValue = savedCfg.sourceValue || "";
     cfg.sourceFileName = savedCfg.sourceFileName || "";
+    cfg.panX = Number(savedCfg.panX ?? 50);
+    cfg.panY = Number(savedCfg.panY ?? 50);
+    cfg.zoom = Number(savedCfg.zoom ?? 100);
 
     cfg.ui.titleInput.value = cfg.title;
     cfg.ui.titleHeading.textContent = cfg.title;
@@ -671,6 +832,9 @@ function applyLoadedConfig(parsed, options = {}) {
 
     video.volume = cfg.volume;
     video.muted = Boolean(savedCfg.muted);
+
+    applyVideoPosition(cfg, video);
+    cfg.ui.refreshPositionOutputs();
 
     if (cfg.sourceMode === "url" && cfg.sourceValue) {
       cfg.ui.urlInput.value = cfg.sourceValue;
@@ -695,10 +859,7 @@ function applyLoadedConfig(parsed, options = {}) {
 }
 
 async function loadConfigFromFileInput(file) {
-  if (!file) {
-    return;
-  }
-
+  if (!file) return;
   try {
     const text = await file.text();
     const parsed = JSON.parse(text);
@@ -709,24 +870,17 @@ async function loadConfigFromFileInput(file) {
   }
 }
 
+// ─── playback ─────────────────────────────────────────────────────────────────
+
 async function unlockPlayback() {
-  if (playbackUnlocked) {
-    return;
-  }
-
+  if (playbackUnlocked) return;
   playbackUnlocked = true;
-
   for (const cfg of configs) {
     const video = getVideoByConfig(cfg);
     video.volume = cfg.volume;
     video.muted = false;
-
-    try {
-      await video.play();
-    } catch (error) {
-    }
+    try { await video.play(); } catch {}
   }
-
   updateGlobalButtons();
 }
 
@@ -737,7 +891,6 @@ function toggleMuteAll() {
     video.muted = shouldMute;
     cfg.ui.refreshMuteState();
   });
-
   updateGlobalButtons();
   showActionIcon(shouldMute ? "🔇" : "🔊");
   setStatus(shouldMute ? "All videos muted." : "All videos unmuted.");
@@ -745,32 +898,23 @@ function toggleMuteAll() {
 
 function toggleMuteSingle(index) {
   const cfg = configs[index];
-  if (!cfg) {
-    return;
-  }
-
+  if (!cfg) return;
   const video = getVideoByConfig(cfg);
   video.muted = !video.muted;
   cfg.ui.refreshMuteState();
   updateGlobalButtons();
-
   showActionIcon(video.muted ? "🔇" : "🔊");
   setStatus(`${cfg.title} ${video.muted ? "muted" : "unmuted"}.`);
 }
 
 function togglePauseAll() {
   const shouldPause = configs.some((cfg) => !getVideoByConfig(cfg).paused);
-
   configs.forEach((cfg) => {
     const video = getVideoByConfig(cfg);
-    if (shouldPause) {
-      video.pause();
-    } else {
-      video.play().catch(() => {});
-    }
+    if (shouldPause) video.pause();
+    else video.play().catch(() => {});
     cfg.ui.refreshPlayPauseButton();
   });
-
   updateGlobalButtons();
   showActionIcon(shouldPause ? "⏸" : "▶");
   setStatus(shouldPause ? "All videos paused." : "All videos resumed.");
@@ -778,17 +922,10 @@ function togglePauseAll() {
 
 function togglePauseSingle(index) {
   const cfg = configs[index];
-  if (!cfg) {
-    return;
-  }
-
+  if (!cfg) return;
   const video = getVideoByConfig(cfg);
-  if (video.paused) {
-    video.play().catch(() => {});
-  } else {
-    video.pause();
-  }
-
+  if (video.paused) video.play().catch(() => {});
+  else video.pause();
   cfg.ui.refreshPlayPauseButton();
   updateGlobalButtons();
   showActionIcon(video.paused ? "⏸" : "▶");
@@ -798,50 +935,34 @@ function togglePauseSingle(index) {
 function clearSoloMode() {
   soloIndex = null;
   videoWall.classList.remove("solo-mode");
-  document.querySelectorAll(".video-cell").forEach((cell) => {
-    cell.classList.remove("solo-visible");
-  });
-
+  document.querySelectorAll(".video-cell").forEach((cell) => cell.classList.remove("solo-visible"));
   configs.forEach((cfg) => {
     const video = getVideoByConfig(cfg);
     video.play().catch(() => {});
     cfg.ui.refreshPlayPauseButton();
   });
-
   updateGlobalButtons();
 }
 
 function soloVideo(index) {
   const cfg = configs[index];
-  if (!cfg) {
-    return;
-  }
-
+  if (!cfg) return;
   if (soloIndex === index) {
     clearSoloMode();
     showActionIcon("◫");
     setStatus("Solo view cleared.");
     return;
   }
-
   const cells = document.querySelectorAll(".video-cell");
   soloIndex = index;
-
   videoWall.classList.add("solo-mode");
-  cells.forEach((cell, cellIndex) => {
-    cell.classList.toggle("solo-visible", cellIndex === index);
-  });
-
-  configs.forEach((item, itemIndex) => {
+  cells.forEach((cell, i) => cell.classList.toggle("solo-visible", i === index));
+  configs.forEach((item, i) => {
     const video = getVideoByConfig(item);
-    if (itemIndex === index) {
-      video.play().catch(() => {});
-    } else {
-      video.pause();
-    }
+    if (i === index) video.play().catch(() => {});
+    else video.pause();
     item.ui.refreshPlayPauseButton();
   });
-
   updateGlobalButtons();
   showActionIcon(String(index + 1));
   setStatus(`${cfg.title} solo view enabled.`);
@@ -865,14 +986,36 @@ async function toggleFullscreen() {
   }
 }
 
+// ─── init ─────────────────────────────────────────────────────────────────────
+
 createLayoutUI();
 configs.forEach((cfg) => createControlUI(cfg));
 
-document.querySelectorAll(".video-cell").forEach((cell) => {
-  cell.addEventListener("click", () => {
-    if (!hud.classList.contains("hidden")) {
+// Attach drag and wheel handlers to each video-cell
+document.querySelectorAll(".video-cell").forEach((cell, index) => {
+  const cfg = configs[index];
+
+  cell.addEventListener("pointerdown", (e) => {
+    if (hud.classList.contains("hidden")) {
+      onCellPointerDown(e, cfg);
+    } else {
       toggleHud(false);
     }
+  });
+
+  cell.addEventListener("pointermove", onCellPointerMove);
+  cell.addEventListener("pointerup", onCellPointerUp);
+  cell.addEventListener("pointercancel", onCellPointerUp);
+
+  cell.addEventListener("wheel", (e) => onCellWheel(e, cfg), { passive: false });
+
+  // Double-click to reset position
+  cell.addEventListener("dblclick", () => {
+    if (!hud.classList.contains("hidden")) return;
+    resetVideoPosition(cfg, getVideoByConfig(cfg));
+    if (cfg.ui) cfg.ui.refreshPositionOutputs();
+    showActionIcon("↺");
+    setStatus(`${cfg.title}: position reset.`);
   });
 });
 
@@ -891,26 +1034,22 @@ quickLayoutBtn.addEventListener("click", toggleLayoutMode);
 quickHelpBtn.addEventListener("click", () => toggleHelp());
 quickFullscreenBtn.addEventListener("click", toggleFullscreen);
 
-loadConfigInput.addEventListener("change", async (event) => {
-  const file = event.target.files && event.target.files[0];
+loadConfigInput.addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
   await loadConfigFromFileInput(file);
   loadConfigInput.value = "";
 });
 
-quickLoadConfigInput.addEventListener("change", async (event) => {
-  const file = event.target.files && event.target.files[0];
+quickLoadConfigInput.addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
   await loadConfigFromFileInput(file);
   quickLoadConfigInput.value = "";
 });
 
-document.addEventListener("pointerdown", () => {
-  unlockPlayback();
-});
+document.addEventListener("pointerdown", () => unlockPlayback());
 
 document.addEventListener("mousemove", () => {
-  if (hud.classList.contains("hidden")) {
-    showQuickBar();
-  }
+  if (hud.classList.contains("hidden")) showQuickBar();
 });
 
 document.addEventListener("fullscreenchange", updateGlobalButtons);
@@ -919,33 +1058,17 @@ document.addEventListener("keydown", async (event) => {
   const activeTag = document.activeElement?.tagName;
   const isTyping = activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT";
 
-  if (!isTyping) {
-    await unlockPlayback();
-  }
+  if (!isTyping) await unlockPlayback();
 
   if (event.code === "Enter") {
-    if (!isTyping) {
-      event.preventDefault();
-      toggleHud();
-    }
+    if (!isTyping) { event.preventDefault(); toggleHud(); }
     return;
   }
 
-  if (isTyping) {
-    return;
-  }
+  if (isTyping) return;
 
-  if (event.code === "Space" || event.code === "KeyP") {
-    event.preventDefault();
-    togglePauseAll();
-    return;
-  }
-
-  if (event.code === "KeyL") {
-    event.preventDefault();
-    toggleLayoutMode();
-    return;
-  }
+  if (event.code === "Space" || event.code === "KeyP") { event.preventDefault(); togglePauseAll(); return; }
+  if (event.code === "KeyL") { event.preventDefault(); toggleLayoutMode(); return; }
 
   if (event.ctrlKey && ["Digit1", "Digit2", "Digit3", "Digit4"].includes(event.code)) {
     event.preventDefault();
@@ -960,37 +1083,13 @@ document.addEventListener("keydown", async (event) => {
   }
 
   switch (event.code) {
-    case "KeyH":
-      event.preventDefault();
-      toggleHelp();
-      break;
-    case "Escape":
-      event.preventDefault();
-      clearSoloMode();
-      setStatus("Solo view cleared.");
-      break;
-    case "KeyM":
-      event.preventDefault();
-      toggleMuteAll();
-      break;
-    case "Digit1":
-      event.preventDefault();
-      toggleMuteSingle(0);
-      break;
-    case "Digit2":
-      event.preventDefault();
-      toggleMuteSingle(1);
-      break;
-    case "Digit3":
-      event.preventDefault();
-      toggleMuteSingle(2);
-      break;
-    case "Digit4":
-      event.preventDefault();
-      toggleMuteSingle(3);
-      break;
-    default:
-      break;
+    case "KeyH": event.preventDefault(); toggleHelp(); break;
+    case "Escape": event.preventDefault(); clearSoloMode(); setStatus("Solo view cleared."); break;
+    case "KeyM": event.preventDefault(); toggleMuteAll(); break;
+    case "Digit1": event.preventDefault(); toggleMuteSingle(0); break;
+    case "Digit2": event.preventDefault(); toggleMuteSingle(1); break;
+    case "Digit3": event.preventDefault(); toggleMuteSingle(2); break;
+    case "Digit4": event.preventDefault(); toggleMuteSingle(3); break;
   }
 });
 
@@ -998,3 +1097,24 @@ applyLayoutMode("4x1");
 setHudVisible(true);
 updateGlobalButtons();
 setStatus(introMessage);
+
+// ─── hide cursor after inactivity ────────────────────────────────────────────
+let cursorTimer;
+const CURSOR_HIDE_DELAY = 3000;
+
+function hideCursor() {
+  const style = document.getElementById('__cursorHideStyle') 
+    || Object.assign(document.createElement('style'), { id: '__cursorHideStyle' });
+  style.textContent = '* { cursor: none !important; }';
+  document.head.appendChild(style);
+}
+
+function showCursor() {
+  document.getElementById('__cursorHideStyle')?.remove();
+}
+
+document.addEventListener('mousemove', () => {
+  showCursor();
+  clearTimeout(cursorTimer);
+  cursorTimer = setTimeout(hideCursor, CURSOR_HIDE_DELAY);
+});
