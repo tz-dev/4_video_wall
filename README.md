@@ -160,7 +160,7 @@ Left half: videos 1 and 2 side by side at full height. Right half: videos 3 and 
 
 ```
 | V1 | V2 |   V3   |
-|         |   V4   |
+|    |    |   V4   |
 ```
 
 ### `2x1-right`
@@ -169,7 +169,7 @@ Left half: videos 1 and 2 stacked. Right half: videos 3 and 4 side by side at fu
 
 ```
 |   V1   | V3 | V4 |
-|   V2   |         |
+|   V2   |    |    |
 ```
 
 ---
