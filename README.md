@@ -35,6 +35,11 @@ A browser-based 4-video wall player with per-video loop controls, volume control
 
 This project is intended for installations, visual walls, live performance setups, moodboards, editing previews, exhibition displays, or any setup where multiple videos need to run in sync-like independent loop windows inside a browser.
 
+## Screenshots
+
+![HUD Screenshot](img/screenshot_hud.png)
+![Videos Screenshot](img/screenshot_videos.png)
+
 ---
 
 ## Project Structure
