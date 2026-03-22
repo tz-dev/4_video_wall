@@ -384,6 +384,7 @@ Common changes in `css/style.css`:
 * Synchronization is visual/manual, not frame-accurate across videos
 * Supported playback depends on browser codec support
 * If panning a video does not work as intended after changing the layout, use zoom or double click to reset
+* Panning a video to center screen manually in solo mode may be necessary
 
 ---
 
