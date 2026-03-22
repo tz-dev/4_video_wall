@@ -37,8 +37,9 @@ This project is intended for installations, visual walls, live performance setup
 
 ## Screenshots
 
-![HUD Screenshot](img/screenshot_hud.png)
-![Videos Screenshot](img/screenshot_videos.png)
+![HUD Screenshot](img/screenshot_hud.png)  
+![Videos Screenshot](img/screenshot_videos.png)  
+![Layout 2 Screenshot](img/screenshot_layout2.png)  
 
 ---
 
