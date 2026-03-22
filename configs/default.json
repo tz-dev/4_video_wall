@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "name": "My Video Wall",
+  "layoutMode": "4x1",
+  "exportedAt": "2026-03-22T09:07:58.264Z",
+  "videos": [
+    {
+      "id": "video1",
+      "title": "Video 1",
+      "sourceMode": "url",
+      "sourceValue": "1.mp4",
+      "sourceFileName": "",
+      "loopStart": 0,
+      "loopEnd": 10,
+      "volume": 1.0,
+      "muted": true
+    },
+    {
+      "id": "video2",
+      "title": "Video 2",
+      "sourceMode": "url",
+      "sourceValue": "2.mp4",
+      "sourceFileName": "",
+      "loopStart": 0,
+      "loopEnd": 10,
+      "volume": 1.0,
+      "muted": true
+    },
+    {
+      "id": "video3",
+      "title": "Video 3",
+      "sourceMode": "url",
+      "sourceValue": "3.mp4",
+      "sourceFileName": "",
+      "loopStart": 0,
+      "loopEnd": 10,
+      "volume": 1.0,
+      "muted": true
+    },
+    {
+      "id": "video4",
+      "title": "Video 4",
+      "sourceMode": "url",
+      "sourceValue": "4.mp4",
+      "sourceFileName": "",
+      "loopStart": 0,
+      "loopEnd": 10,
+      "volume": 1.0,
+      "muted": true
+    }
+  ]
+}

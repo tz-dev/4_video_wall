@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>4 Video Wall</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div id="videoWall" class="video-wall layout-4x1">
+      <div class="video-cell">
+        <div class="label" id="label1">1</div>
+        <video id="video1" playsinline preload="auto" src=""></video>
+      </div>
+      <div class="video-cell">
+        <div class="label" id="label2">2</div>
+        <video id="video2" playsinline preload="auto" src=""></video>
+      </div>
+      <div class="video-cell">
+        <div class="label" id="label3">3</div>
+        <video id="video3" playsinline preload="auto" src=""></video>
+      </div>
+      <div class="video-cell">
+        <div class="label" id="label4">4</div>
+        <video id="video4" playsinline preload="auto" src=""></video>
+      </div>
+    </div>
+
+    <div id="hud" class="hud">
+      <div class="hud-header">
+        <h2>Menu</h2>
+
+        <div class="hud-header-actions">
+          <button id="toggleMuteAllBtn" type="button">Mute All</button>
+          <button id="togglePauseAllBtn" type="button">Pause All</button>
+          <button id="fullscreenBtn" type="button">Fullscreen</button>
+          <button id="saveConfig" type="button">Save Config</button>
+
+          <label class="inline-file-button">
+            <input id="loadConfigInput" type="file" accept="application/json" hidden />
+            <span>Load Config</span>
+          </label>
+
+          <button id="closeHud" class="hud-close" type="button">[ X ]</button>
+        </div>
+      </div>
+
+      <div class="hud-note">
+        <b>Enter</b> toggles menu. <b>H</b> toggles help. <b>Space</b> or <b>P</b> toggles play/pause all.
+        <b>M</b> toggles mute all. <b>1</b>-<b>4</b> mute/unmute single video.
+        <b>Shift + 1</b>-<b>4</b> pause/resume single video. <b>Ctrl + 1</b>-<b>4</b> toggles solo view.
+      </div>
+
+      <div id="globalStatus" class="global-status">Ready.</div>
+      <div id="controls"></div>
+    </div>
+
+    <div id="helpOverlay" class="overlay hidden" aria-hidden="true">
+      <div class="overlay-card">
+        <div class="overlay-header">
+          <h2>Help</h2>
+          <button id="closeHelp" type="button">Close</button>
+        </div>
+
+        <div class="help-grid">
+          <div><b>Enter</b></div><div>Toggle menu</div>
+          <div><b>H</b></div><div>Toggle help screen</div>
+          <div><b>Space</b> / <b>P</b></div><div>Pause/resume all videos</div>
+          <div><b>M</b></div><div>Mute/unmute all videos</div>
+          <div><b>1</b>-<b>4</b></div><div>Mute/unmute video 1-4</div>
+          <div><b>Shift + 1</b>-<b>4</b></div><div>Pause/resume video 1-4</div>
+          <div><b>Ctrl + 1</b>-<b>4</b></div><div>Toggle solo view for video 1-4</div>
+          <div><b>L</b></div><div>Switch viewport layout</div>
+          <div><b>Esc</b></div><div>Exit solo view</div>
+          <div><b>Mouse move</b></div><div>Show quick action bar when menu is hidden</div>
+        </div>
+
+        <p class="help-note">
+          Load a config to start.
+          Saving config stores config name, layout mode, title, source mode, URL, loop points, volume, and mute state for all videos in one JSON file.
+          Browser-selected local files cannot be restored automatically after reload for security reasons, so those entries are marked and must be re-selected.
+        </p>
+      </div>
+    </div>
+
+    <div id="actionOverlay" class="action-overlay" aria-hidden="true">
+      <div id="actionIcon" class="action-icon"></div>
+    </div>
+
+    <div id="toast" class="toast" aria-live="polite"></div>
+
+    <div id="quickBar" class="quick-bar hidden" aria-hidden="true">
+      <button id="quickShowHudBtn" type="button" title="Show Menu">Menu</button>
+      <button id="quickPauseBtn" type="button" title="Play / Pause">⏸</button>
+      <button id="quickMuteBtn" type="button" title="Mute / Unmute">🔊</button>
+      <button id="quickLayoutBtn" type="button" title="Switch Layout">4x1</button>
+      <button id="quickHelpBtn" type="button" title="Help">?</button>
+      <button id="quickFullscreenBtn" type="button" title="Fullscreen">⛶</button>
+
+      <label class="inline-file-button quick-load-label" title="Load Config">
+        <input id="quickLoadConfigInput" type="file" accept="application/json" hidden />
+        <span>Load</span>
+      </label>
+    </div>
+
+    <script src="js/script.js"></script>
+  </body>
+</html>
