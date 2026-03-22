@@ -17,12 +17,12 @@ A browser-based 4-video wall player with per-video loop controls, volume control
   - loop start / loop end
   - seek / current time
   - play / pause
+  - toggle solo mode
 - Global controls:
   - mute / unmute all
   - pause / play all
   - fullscreen
   - layout toggle
-- Solo mode per video
 - Quick action bar when HUD is hidden
 - Help overlay
 - Save / load JSON configs
