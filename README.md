@@ -67,11 +67,13 @@ If using local files, this project must be served via a local web server — ope
 If only using URLs, just open index.html in your browser.
 
 ### Quick start with Python
+
 ```bash
 python -m http.server 8080
 ```
 
 Then open [http://localhost:8080](http://localhost:8080) in your browser.
+
 ---
 
 ## Controls
