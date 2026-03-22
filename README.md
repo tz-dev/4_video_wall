@@ -1,6 +1,6 @@
 # 4 Video Wall
 
-A browser-based 4-video wall player with per-video loop controls, volume control, solo mode, layout switching, fullscreen support, keyboard shortcuts, config save/load, and a HUD for live adjustments.
+A browser-based 4-video wall player with per-video loop controls, volume control, pan & zoom, solo mode, layout switching, fullscreen support, keyboard shortcuts, config save/load, and a HUD for live adjustments.
 
 ## Features
 
@@ -18,6 +18,9 @@ A browser-based 4-video wall player with per-video loop controls, volume control
   - seek / current time
   - play / pause
   - toggle solo mode
+  - pan X / pan Y (drag or slider)
+  - zoom (scroll or slider, 100–300%)
+  - reset position
 - Global controls:
   - mute / unmute all
   - pause / play all
@@ -77,6 +80,38 @@ This project is intended for installations, visual walls, live performance setup
 
 * Moving the mouse while the HUD is hidden shows the quick action bar.
 * Clicking on a video while the HUD is visible hides the HUD.
+* **Dragging** a video cell while the HUD is hidden pans the video within its cell.
+* **Scrolling** over a video cell while the HUD is hidden zooms in or out (100–300%).
+* **Double-clicking** a video cell while the HUD is hidden resets pan and zoom to default.
+
+---
+
+## Pan & Zoom
+
+Each video can be repositioned and scaled independently within its cell. This is useful for cropping into a specific region of the frame, or reframing footage without changing the source.
+
+### How to use
+
+**With the mouse (HUD closed):**
+
+* Drag to pan — move the visible frame within the cell. The cursor changes to a grab hand to indicate drag mode is active.
+* Scroll to zoom — zooms in or out in 10% steps between 100% and 300%.
+* Double-click to reset — returns pan and zoom to their default values (center, 100%).
+
+**With the HUD open:**
+
+Each video panel includes three sliders:
+
+* `Zoom` — scales the video from 100% (original crop) to 300%.
+* `Pan X` — horizontal position of the frame (0% = left edge, 100% = right edge).
+* `Pan Y` — vertical position of the frame (0% = top, 100% = bottom).
+* `Reset Position` button — resets all three values at once.
+
+### Technical behavior
+
+* At zoom 100%, panning is handled via CSS `object-position`, which shifts the visible crop within the cover-fit area.
+* At zoom above 100%, a CSS `transform: scale + translate` is applied so the video fills the cell at the enlarged size and can be panned across the extra space.
+* Pan and zoom are non-destructive — the source video is not modified.
 
 ---
 
@@ -99,10 +134,13 @@ Each video block includes:
 * loop start / loop end in one row
 * current time slider
 * current playback time with total duration in brackets
+* zoom slider (100–300%)
+* pan X / pan Y sliders
 * play / pause button
 * jump to loop start
 * set loop start to current position
 * set loop end to current position
+* reset position button
 * icon-only mute toggle button
 
 ---
@@ -164,6 +202,9 @@ The app can export and import a JSON configuration file.
   * loop end
   * volume
   * muted state
+  * pan X
+  * pan Y
+  * zoom
 
 ### Important limitation for local files
 
@@ -181,7 +222,7 @@ That means:
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "name": "My Video Wall",
   "layoutMode": "4x1",
   "exportedAt": "2026-03-22T09:07:58.264Z",
@@ -195,7 +236,10 @@ That means:
       "loopStart": 0,
       "loopEnd": 10,
       "volume": 1.0,
-      "muted": true
+      "muted": true,
+      "panX": 50,
+      "panY": 50,
+      "zoom": 100
     },
     {
       "id": "video2",
@@ -206,7 +250,10 @@ That means:
       "loopStart": 0,
       "loopEnd": 10,
       "volume": 1.0,
-      "muted": true
+      "muted": true,
+      "panX": 50,
+      "panY": 50,
+      "zoom": 100
     },
     {
       "id": "video3",
@@ -217,7 +264,10 @@ That means:
       "loopStart": 0,
       "loopEnd": 10,
       "volume": 1.0,
-      "muted": true
+      "muted": true,
+      "panX": 50,
+      "panY": 50,
+      "zoom": 100
     },
     {
       "id": "video4",
@@ -228,7 +278,10 @@ That means:
       "loopStart": 0,
       "loopEnd": 10,
       "volume": 1.0,
-      "muted": true
+      "muted": true,
+      "panX": 50,
+      "panY": 50,
+      "zoom": 100
     }
   ]
 }
@@ -267,7 +320,7 @@ Relevant visual systems:
 * toast notifications
 * central action icon overlay
 * solo mode styling
-* responsive loop input layout for small screens
+* responsive loop and pan input layout for small screens
 
 ---
 
@@ -276,6 +329,7 @@ Relevant visual systems:
 On smaller screens:
 
 * loop start / end fields stack vertically
+* pan X / pan Y fields stack vertically
 * HUD remains scrollable
 * quick bar stays compact and centered
 
@@ -301,6 +355,7 @@ Common changes you can make in `js/script.js`:
 * change default video files
 * change default loop points
 * change default volume values
+* change default pan and zoom values
 * change default layout
 * change keyboard shortcuts
 * add more metadata per video
