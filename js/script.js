@@ -3,9 +3,9 @@ const configs = [
     id: "video1",
     defaultTitle: "Video 1",
     title: "Video 1",
-    loopStart: 23.0,
-    loopEnd: 60.0,
-    volume: 0.3,
+    loopStart: 0.0,
+    loopEnd: Infinity,
+    volume: 1.0,
     sourceMode: "url",
     sourceValue: "1.mp4",
     sourceFileName: "",
@@ -18,9 +18,9 @@ const configs = [
     id: "video2",
     defaultTitle: "Video 2",
     title: "Video 2",
-    loopStart: 58.0,
-    loopEnd: 70.0,
-    volume: 0.2,
+    loopStart: 0.0,
+    loopEnd: Infinity,
+    volume: 1.0,
     sourceMode: "url",
     sourceValue: "2.mp4",
     sourceFileName: "",
@@ -33,9 +33,9 @@ const configs = [
     id: "video3",
     defaultTitle: "Video 3",
     title: "Video 3",
-    loopStart: 2.0,
-    loopEnd: 30.0,
-    volume: 0.2,
+    loopStart: 0.0,
+    loopEnd: Infinity,
+    volume: 1.0,
     sourceMode: "url",
     sourceValue: "3.mp4",
     sourceFileName: "",
@@ -48,8 +48,8 @@ const configs = [
     id: "video4",
     defaultTitle: "Video 4",
     title: "Video 4",
-    loopStart: 7.0,
-    loopEnd: 31.0,
+    loopStart: 0.0,
+    loopEnd: Infinity,
     volume: 1.0,
     sourceMode: "url",
     sourceValue: "4.mp4",
@@ -321,23 +321,25 @@ function onCellWheel(e, cfg) {
 // ─── source & label ──────────────────────────────────────────────────────────
 
 function setVideoSource(video, cfg, src, statusEl, options = {}) {
-  const { mode = "url", sourceValue = src, sourceFileName = "" } = options;
 
-  safelyRevokeObjectUrl(cfg);
   video.pause();
-  video.removeAttribute("src");
-  video.load();
+
+  video.addEventListener("canplay", function handler() {
+    video.removeEventListener("canplay", handler);
+    video.play().catch(() => {});
+  }, { once: true });
+
   video.src = src;
   video.load();
 
-  cfg.sourceMode = mode;
-  cfg.sourceValue = sourceValue;
-  cfg.sourceFileName = sourceFileName;
+  cfg.sourceMode = options.mode ?? "url";
+  cfg.sourceValue = options.sourceValue ?? src;
+  cfg.sourceFileName = options.sourceFileName ?? "";
 
   if (statusEl) {
-    statusEl.textContent = mode === "file"
-      ? `Source: local file (${sourceFileName || "selected"})`
-      : `Source: ${sourceValue}`;
+    statusEl.textContent = options.mode === "file"
+      ? `Source: local file (${options.sourceFileName || "selected"})`
+      : `Source: ${options.sourceValue}`;
   }
 
   updateLabel(cfg, video);
@@ -597,12 +599,18 @@ function createControlUI(cfg) {
     updateLabel(cfg, video);
   });
 
+  // loadFile handler – cfg.objectUrl erst NACH setVideoSource setzen
   wrap.querySelector('[data-action="loadFile"]').addEventListener("click", () => {
-    const file = fileInput.files && fileInput.files[0];
+    const file = fileInput.files?.[0];
     if (!file) { setStatus(`No local file selected for ${cfg.title}.`); return; }
+    playbackUnlocked = true;
     const objectUrl = URL.createObjectURL(file);
-    cfg.objectUrl = objectUrl;
-    setVideoSource(video, cfg, objectUrl, sourceStatus, { mode: "file", sourceValue: "", sourceFileName: file.name });
+    setVideoSource(video, cfg, objectUrl, sourceStatus, {
+      mode: "file",
+      sourceValue: "",
+      sourceFileName: file.name
+    });
+    cfg.objectUrl = objectUrl;  // ← nach setVideoSource, sonst wird sie sofort revoked
     setStatus(`Loaded local file for ${cfg.title}: ${file.name}`);
   });
 
