@@ -39,11 +39,11 @@ A browser-based 4-video wall player with per-video loop controls, volume control
 - Active panel count (show first 1–4 panels)
 - Drag to pan and scroll to zoom when HUD is hidden
 - Quick action bar when HUD is hidden
-- Help overlay
 - Save / load JSON configs
 - Toast messages and action overlay feedback
 - Local-file aware config restore behavior
 - Config persistence for layout gap and per-video filter values
+- Help overlay
 
 ---
 
@@ -169,7 +169,7 @@ Solo mode shows only one selected video, centered and letter/pillarboxed.
 
 Behavior:
 
-* `Ctrl + 1-4` activates solo mode for the selected video
+* `Ctrl` + `1`-`4` activates solo mode for the selected video
 * pressing the same shortcut again toggles solo mode off
 * when solo mode is cleared, all videos resume playback
 * in solo mode, the visible video uses `object-fit: contain` to fill the available space without cropping
@@ -184,10 +184,10 @@ The active panel count controls how many video panels are shown at once without 
 
 Behavior:
 
-* `Alt + 1` shows only the first panel
-* `Alt + 2` shows only the first two panels
-* `Alt + 3` shows only the first three panels
-* `Alt + 4` shows all four panels
+* `Alt` + `1` shows only the first panel
+* `Alt` + `2` shows only the first two panels
+* `Alt` + `3` shows only the first three panels
+* `Alt` + `4` shows all four panels
 * pressing the same key again restores all four panels
 * hidden panels are only visually hidden — all video state, loop points, volume, speed, pan, and zoom settings are preserved
 * the visible panels expand to fill the full screen width
@@ -512,7 +512,7 @@ Common changes in `css/style.css`:
 * Supported playback rate range depends on browser codec support
 * If panning a video does not work as intended after changing the layout, use zoom or double click to reset
 * Pan and zoom have no visible effect while a video is in solo mode — they are preserved and resume when solo mode is exited
-* Active panel count (`Alt + 1–4`) overrides the current layout grid temporarily; switching layouts while a panel count is active will take effect once the panel count is cleared
+* Active panel count (`Alt` + `1`–`4`) overrides the current layout grid temporarily; switching layouts while a panel count is active will take effect once the panel count is cleared
 * Filter rendering depends on browser support for CSS/video filter pipelines, but modern Chromium-based browsers and Firefox generally handle this well
 
 ---
