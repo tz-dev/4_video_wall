@@ -98,9 +98,9 @@ Then open [http://localhost:8080](http://localhost:8080) in your browser.
 | `Space` / `P`     | Pause / resume all videos                         |
 | `M`               | Mute / unmute all videos                          |
 | `1` - `4`         | Mute / unmute video 1-4                           |
-| `Shift + 1` - `4` | Pause / resume video 1-4                          |
-| `Ctrl + 1` - `4`  | Toggle solo mode for video 1-4                    |
-| `Alt + 1` - `4`   | Show only first N panels (press again to restore) |
+| `Shift` + `1` - `4` | Pause / resume video 1-4                          |
+| `Ctrl` + `1` - `4`  | Toggle solo mode for video 1-4                    |
+| `Alt` + `1` - `4`   | Show only first N panels (press again to restore) |
 | `L`               | Cycle to next layout                              |
 | `Esc`             | Exit solo mode                                    |
 
