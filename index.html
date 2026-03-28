@@ -49,7 +49,7 @@
         <b>Enter</b> toggles menu. <b>H</b> toggles help. <b>Space</b> or <b>P</b> toggles play/pause all.
         <b>M</b> toggles mute all. <b>1</b>-<b>4</b> mute/unmute single video.
         <b>Shift + 1</b>-<b>4</b> pause/resume single video. <b>Ctrl + 1</b>-<b>4</b> toggles solo view.
-        Close menu to drag videos.
+        <b>Alt + 1</b>-<b>4</b> shows first N panels. Close menu to drag videos.
       </div>
 
       <div id="globalStatus" class="global-status">Ready.</div>
@@ -71,6 +71,7 @@
           <div><b>1</b>-<b>4</b></div><div>Mute/unmute video 1-4</div>
           <div><b>Shift + 1</b>-<b>4</b></div><div>Pause/resume video 1-4</div>
           <div><b>Ctrl + 1</b>-<b>4</b></div><div>Toggle solo view for video 1-4</div>
+          <div><b>Alt + 1</b>-<b>4</b></div><div>Show first N panels only (press same key again to restore all)</div>
           <div><b>L</b></div><div>Switch viewport layout</div>
           <div><b>Esc</b></div><div>Exit solo view</div>
           <div><b>Drag (menu closed)</b></div><div>Pan video within its cell</div>
@@ -81,7 +82,7 @@
 
         <p class="help-note">
           Load a config to start.
-          Saving config stores config name, layout mode, title, source mode, URL, loop points, volume, mute state, pan position, and zoom level for all videos in one JSON file.
+          Saving config stores config name, layout mode, title, source mode, URL, loop points, volume, mute state, playback speed, pan position, and zoom level for all videos in one JSON file.
           Browser-selected local files cannot be restored automatically after reload for security reasons, so those entries are marked and must be re-selected.
         </p>
       </div>

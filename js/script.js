@@ -12,7 +12,12 @@ const configs = [
     objectUrl: null,
     panX: 50,
     panY: 50,
-    zoom: 100
+    zoom: 100,
+    playbackRate: 1.0,
+    brightness: 100,
+    contrast: 100,
+    saturation: 100,
+    grayscale: 0
   },
   {
     id: "video2",
@@ -27,7 +32,12 @@ const configs = [
     objectUrl: null,
     panX: 50,
     panY: 50,
-    zoom: 100
+    zoom: 100,
+    playbackRate: 1.0,
+    brightness: 100,
+    contrast: 100,
+    saturation: 100,
+    grayscale: 0
   },
   {
     id: "video3",
@@ -42,7 +52,12 @@ const configs = [
     objectUrl: null,
     panX: 50,
     panY: 50,
-    zoom: 100
+    zoom: 100,
+    playbackRate: 1.0,
+    brightness: 100,
+    contrast: 100,
+    saturation: 100,
+    grayscale: 0
   },
   {
     id: "video4",
@@ -57,16 +72,19 @@ const configs = [
     objectUrl: null,
     panX: 50,
     panY: 50,
-    zoom: 100
+    zoom: 100,
+    playbackRate: 1.0,
+    brightness: 100,
+    contrast: 100,
+    saturation: 100,
+    grayscale: 0
   }
 ];
 
 const introMessage = "Load default config to start.";
 
-// All valid layout modes in cycling order
 const LAYOUT_MODES = ["4x1", "2x2", "2x1-left", "2x1-right"];
 
-// Human-readable labels for status messages and quick bar
 const LAYOUT_LABELS = {
   "4x1":       "4×1",
   "2x2":       "2×2",
@@ -74,13 +92,15 @@ const LAYOUT_LABELS = {
   "2x1-right": "2R+2L"
 };
 
-// Descriptions shown in the source-status line inside the HUD layout panel
 const LAYOUT_DESCRIPTIONS = {
   "4x1":       "4 videos in a row",
   "2x2":       "2×2 grid",
   "2x1-left":  "Left: 2 above each other · right: 2 next to each other",
   "2x1-right": "Left: 2 next to each other · right: 2 above each other"
 };
+
+// Playback speed presets
+const SPEED_PRESETS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 4.0];
 
 const controls = document.getElementById("controls");
 const hud = document.getElementById("hud");
@@ -118,6 +138,10 @@ let quickBarTimer = null;
 let layoutSelect = null;
 let layoutDescStatus = null;
 let soloIndex = null;
+
+// ─── active panel count (Alt+1–4) ─────────────────────────────────────────────
+// null = all 4 panels active; 1–4 = only first N panels shown
+let activePanelCount = null;
 
 // ─── drag state ───────────────────────────────────────────────────────────────
 let dragState = null;
@@ -198,7 +222,8 @@ function updateLabel(cfg, video) {
   const label = document.getElementById(`label${index}`);
   const mutedFlag = video.muted ? "Muted" : "Live";
   const pauseFlag = video.paused ? "Paused" : "Playing";
-  label.textContent = `${index} · ${cfg.title} · ${pauseFlag} · ${mutedFlag}`;
+  const speedFlag = video.playbackRate !== 1.0 ? ` · ${video.playbackRate}×` : "";
+  label.textContent = `${index} · ${cfg.title} · ${pauseFlag} · ${mutedFlag}${speedFlag}`;
 }
 
 function safelyRevokeObjectUrl(cfg) {
@@ -233,6 +258,35 @@ function applyVideoPosition(cfg, video) {
     video.style.transform = `scale(${scale}) translate(${shiftX}%, ${shiftY}%)`;
     video.style.transformOrigin = "center center";
   }
+}
+
+// ─── video filter ─────────────────────────────────────────────────────────────
+
+function applyVideoFilter(cfg, video) {
+  video.style.filter = [
+    `brightness(${cfg.brightness}%)`,
+    `contrast(${cfg.contrast}%)`,
+    `saturate(${cfg.saturation}%)`,
+    `grayscale(${cfg.grayscale}%)`
+  ].join(" ");
+}
+
+function resetVideoFilter(cfg, video) {
+  cfg.brightness = 100;
+  cfg.contrast   = 100;
+  cfg.saturation = 100;
+  cfg.grayscale  = 0;
+  applyVideoFilter(cfg, video);
+  if (cfg.ui) cfg.ui.refreshFilterOutputs();
+}
+
+// ─── grid gap ─────────────────────────────────────────────────────────────────
+
+let currentGridGap = 0;
+
+function applyGridGap(px) {
+  currentGridGap = px;
+  videoWall.style.gap = `${px}px`;
 }
 
 function resetVideoPosition(cfg, video) {
@@ -321,7 +375,6 @@ function onCellWheel(e, cfg) {
 // ─── source & label ──────────────────────────────────────────────────────────
 
 function setVideoSource(video, cfg, src, statusEl, options = {}) {
-
   video.pause();
 
   video.addEventListener("canplay", function handler() {
@@ -356,11 +409,9 @@ function areAllPaused() {
 // ─── layout ───────────────────────────────────────────────────────────────────
 
 function applyLayoutMode(mode) {
-  // Validate; fall back to 4x1 for unknown/legacy values
   const nextMode = LAYOUT_MODES.includes(mode) ? mode : "4x1";
   currentLayoutMode = nextMode;
 
-  // Remove all layout classes, then add the active one
   videoWall.classList.remove(...LAYOUT_MODES.map((m) => `layout-${m}`));
   videoWall.classList.add(`layout-${nextMode}`);
 
@@ -377,6 +428,42 @@ function toggleLayoutMode() {
   applyLayoutMode(nextMode);
   showActionIcon(LAYOUT_LABELS[nextMode] || nextMode);
   setStatus(`Layout: ${LAYOUT_DESCRIPTIONS[nextMode] || nextMode}`);
+}
+
+// ─── active panel count ───────────────────────────────────────────────────────
+
+/**
+ * Show only the first N panels (1–4). Pass null to restore all.
+ * Hidden panels are only visually hidden; all state is preserved.
+ */
+function setActivePanelCount(n) {
+  // If same count pressed again, restore all
+  if (activePanelCount === n) {
+    activePanelCount = null;
+    videoWall.removeAttribute("data-panel-count");
+    document.querySelectorAll(".video-cell").forEach((cell) => {
+      cell.classList.remove("panel-hidden");
+    });
+    // Resume any panel that was playing before
+    configs.forEach((cfg) => {
+      const video = getVideoByConfig(cfg);
+      if (!video.paused) return; // already playing
+      // only resume if it wasn't manually paused
+    });
+    showActionIcon("◫");
+    setStatus("All panels visible.");
+    return;
+  }
+
+  activePanelCount = n;
+  videoWall.setAttribute("data-panel-count", n);
+
+  document.querySelectorAll(".video-cell").forEach((cell, i) => {
+    cell.classList.toggle("panel-hidden", i >= n);
+  });
+
+  showActionIcon(String(n));
+  setStatus(`Showing ${n} panel${n > 1 ? "s" : ""}.`);
 }
 
 function updateGlobalButtons() {
@@ -416,6 +503,21 @@ function hideQuickBar() {
   }, 250);
 }
 
+// ─── playback speed ───────────────────────────────────────────────────────────
+
+function setGlobalSpeed(rate) {
+  configs.forEach((cfg) => {
+    cfg.playbackRate = rate;
+    const video = getVideoByConfig(cfg);
+    video.playbackRate = rate;
+    if (cfg.ui) {
+      cfg.ui.speedInput.value = rate;
+      cfg.ui.outSpeed.textContent = `${rate}×`;
+    }
+    updateLabel(cfg, video);
+  });
+}
+
 // ─── UI creation ─────────────────────────────────────────────────────────────
 
 function createLayoutUI() {
@@ -434,6 +536,21 @@ function createLayoutUI() {
       <button type="button" data-action="toggleLayout">Next</button>
     </div>
     <div class="source-status" data-role="layoutDesc"></div>
+
+    <div class="row">
+      <label>Gap</label>
+      <input type="range" min="0" max="32" step="1" value="0" data-role="gridGap">
+      <output data-out="gridGap">0px</output>
+    </div>
+
+    <div class="row">
+      <label>Global Speed</label>
+      <input type="range" min="0.25" max="4" step="0.05" value="1" data-role="globalSpeed">
+      <output data-out="globalSpeed">1×</output>
+    </div>
+    <div class="speed-presets">
+      ${SPEED_PRESETS.map(s => `<button type="button" class="speed-preset-btn" data-speed="${s}">${s}×</button>`).join("")}
+    </div>
   `;
 
   layoutSelect = wrap.querySelector('[data-role="layoutMode"]');
@@ -446,6 +563,33 @@ function createLayoutUI() {
   });
 
   wrap.querySelector('[data-action="toggleLayout"]').addEventListener("click", toggleLayoutMode);
+
+  const gridGapInput = wrap.querySelector('[data-role="gridGap"]');
+  const outGridGap = wrap.querySelector('[data-out="gridGap"]');
+  gridGapInput.addEventListener("input", () => {
+    const px = Number(gridGapInput.value);
+    outGridGap.textContent = `${px}px`;
+    applyGridGap(px);
+  });
+
+  const globalSpeedInput = wrap.querySelector('[data-role="globalSpeed"]');
+  const outGlobalSpeed = wrap.querySelector('[data-out="globalSpeed"]');
+
+  globalSpeedInput.addEventListener("input", () => {
+    const rate = Number(globalSpeedInput.value);
+    outGlobalSpeed.textContent = `${rate}×`;
+    setGlobalSpeed(rate);
+  });
+
+  wrap.querySelectorAll(".speed-preset-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const rate = Number(btn.dataset.speed);
+      globalSpeedInput.value = rate;
+      outGlobalSpeed.textContent = `${rate}×`;
+      setGlobalSpeed(rate);
+    });
+  });
+
   controls.appendChild(wrap);
 }
 
@@ -462,6 +606,7 @@ function createControlUI(cfg) {
       <input type="text" value="${cfg.title}" data-role="titleInput">
       <div class="icon-button-wrap">
         <button type="button" class="icon-button" data-action="toggleMute" title="Mute / Unmute" aria-label="Mute / Unmute">🔊</button>
+        <button type="button" class="icon-button" data-action="toggleFilters" title="Filters" aria-label="Filters" aria-expanded="false">🎨</button>
       </div>
     </div>
 
@@ -483,6 +628,15 @@ function createControlUI(cfg) {
       <label>Volume</label>
       <input type="range" min="0" max="1" step="0.01" value="${cfg.volume}" data-role="volume">
       <output data-out="volume">${cfg.volume.toFixed(2)}</output>
+    </div>
+
+    <div class="row">
+      <label>Speed</label>
+      <input type="range" min="0.25" max="4" step="0.05" value="${cfg.playbackRate}" data-role="speed">
+      <output data-out="speed">${cfg.playbackRate}×</output>
+    </div>
+    <div class="speed-presets">
+      ${SPEED_PRESETS.map(s => `<button type="button" class="speed-preset-btn" data-speed="${s}">${s}×</button>`).join("")}
     </div>
 
     <div class="loop-row">
@@ -530,6 +684,33 @@ function createControlUI(cfg) {
       <button type="button" data-action="setEndHere">Set End = Now</button>
       <button type="button" data-action="resetPosition">Reset Position</button>
     </div>
+
+    <div class="filter-panel hidden" data-role="filterPanel">
+      <div class="filter-panel-header">
+        <span>Filters</span>
+        <button type="button" class="filter-reset-btn" data-action="resetFilters">Reset</button>
+      </div>
+      <div class="row">
+        <label>Brightness</label>
+        <input type="range" min="0" max="200" step="1" value="${cfg.brightness}" data-role="brightness">
+        <output data-out="brightness">${cfg.brightness}%</output>
+      </div>
+      <div class="row">
+        <label>Contrast</label>
+        <input type="range" min="0" max="200" step="1" value="${cfg.contrast}" data-role="contrast">
+        <output data-out="contrast">${cfg.contrast}%</output>
+      </div>
+      <div class="row">
+        <label>Saturation</label>
+        <input type="range" min="0" max="200" step="1" value="${cfg.saturation}" data-role="saturation">
+        <output data-out="saturation">${cfg.saturation}%</output>
+      </div>
+      <div class="row">
+        <label>Grayscale</label>
+        <input type="range" min="0" max="100" step="1" value="${cfg.grayscale}" data-role="grayscale">
+        <output data-out="grayscale">${cfg.grayscale}%</output>
+      </div>
+    </div>
   `;
 
   const titleInput = wrap.querySelector('[data-role="titleInput"]');
@@ -538,6 +719,7 @@ function createControlUI(cfg) {
   const urlInput = wrap.querySelector('[data-role="url"]');
   const sourceStatus = wrap.querySelector('[data-role="sourceStatus"]');
   const volumeInput = wrap.querySelector('[data-role="volume"]');
+  const speedInput = wrap.querySelector('[data-role="speed"]');
   const loopStartInput = wrap.querySelector('[data-role="loopStart"]');
   const loopEndInput = wrap.querySelector('[data-role="loopEnd"]');
   const seekInput = wrap.querySelector('[data-role="seek"]');
@@ -546,6 +728,7 @@ function createControlUI(cfg) {
   const panYInput = wrap.querySelector('[data-role="panY"]');
 
   const outVolume = wrap.querySelector('[data-out="volume"]');
+  const outSpeed = wrap.querySelector('[data-out="speed"]');
   const outLoopStart = wrap.querySelector('[data-out="loopStart"]');
   const outLoopEnd = wrap.querySelector('[data-out="loopEnd"]');
   const outCurrentTime = wrap.querySelector('[data-out="currentTime"]');
@@ -599,7 +782,6 @@ function createControlUI(cfg) {
     updateLabel(cfg, video);
   });
 
-  // loadFile handler – cfg.objectUrl erst NACH setVideoSource setzen
   wrap.querySelector('[data-action="loadFile"]').addEventListener("click", () => {
     const file = fileInput.files?.[0];
     if (!file) { setStatus(`No local file selected for ${cfg.title}.`); return; }
@@ -610,7 +792,7 @@ function createControlUI(cfg) {
       sourceValue: "",
       sourceFileName: file.name
     });
-    cfg.objectUrl = objectUrl;  // ← nach setVideoSource, sonst wird sie sofort revoked
+    cfg.objectUrl = objectUrl;
     setStatus(`Loaded local file for ${cfg.title}: ${file.name}`);
   });
 
@@ -625,6 +807,25 @@ function createControlUI(cfg) {
     cfg.volume = Number(volumeInput.value);
     video.volume = cfg.volume;
     outVolume.textContent = cfg.volume.toFixed(2);
+  });
+
+  // ── per-video speed ──
+  speedInput.addEventListener("input", () => {
+    cfg.playbackRate = Number(speedInput.value);
+    video.playbackRate = cfg.playbackRate;
+    outSpeed.textContent = `${cfg.playbackRate}×`;
+    updateLabel(cfg, video);
+  });
+
+  wrap.querySelectorAll(".speed-preset-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const rate = Number(btn.dataset.speed);
+      cfg.playbackRate = rate;
+      video.playbackRate = rate;
+      speedInput.value = rate;
+      outSpeed.textContent = `${rate}×`;
+      updateLabel(cfg, video);
+    });
   });
 
   function sanitizeLoopInput(input) {
@@ -679,6 +880,64 @@ function createControlUI(cfg) {
     applyVideoPosition(cfg, video);
   });
 
+  // ── filters ──
+  const filterPanel = wrap.querySelector('[data-role="filterPanel"]');
+  const brightnessInput = wrap.querySelector('[data-role="brightness"]');
+  const contrastInput = wrap.querySelector('[data-role="contrast"]');
+  const saturationInput = wrap.querySelector('[data-role="saturation"]');
+  const grayscaleInput = wrap.querySelector('[data-role="grayscale"]');
+  const outBrightness = wrap.querySelector('[data-out="brightness"]');
+  const outContrast = wrap.querySelector('[data-out="contrast"]');
+  const outSaturation = wrap.querySelector('[data-out="saturation"]');
+  const outGrayscale = wrap.querySelector('[data-out="grayscale"]');
+  const toggleFiltersBtn = wrap.querySelector('[data-action="toggleFilters"]');
+
+  function refreshFilterOutputs() {
+    brightnessInput.value = cfg.brightness;
+    contrastInput.value   = cfg.contrast;
+    saturationInput.value = cfg.saturation;
+    grayscaleInput.value  = cfg.grayscale;
+    outBrightness.textContent = `${cfg.brightness}%`;
+    outContrast.textContent   = `${cfg.contrast}%`;
+    outSaturation.textContent = `${cfg.saturation}%`;
+    outGrayscale.textContent  = `${cfg.grayscale}%`;
+  }
+
+  toggleFiltersBtn.addEventListener("click", () => {
+    const isHidden = filterPanel.classList.toggle("hidden");
+    toggleFiltersBtn.setAttribute("aria-expanded", String(!isHidden));
+    toggleFiltersBtn.classList.toggle("active", !isHidden);
+  });
+
+  brightnessInput.addEventListener("input", () => {
+    cfg.brightness = Number(brightnessInput.value);
+    outBrightness.textContent = `${cfg.brightness}%`;
+    applyVideoFilter(cfg, video);
+  });
+
+  contrastInput.addEventListener("input", () => {
+    cfg.contrast = Number(contrastInput.value);
+    outContrast.textContent = `${cfg.contrast}%`;
+    applyVideoFilter(cfg, video);
+  });
+
+  saturationInput.addEventListener("input", () => {
+    cfg.saturation = Number(saturationInput.value);
+    outSaturation.textContent = `${cfg.saturation}%`;
+    applyVideoFilter(cfg, video);
+  });
+
+  grayscaleInput.addEventListener("input", () => {
+    cfg.grayscale = Number(grayscaleInput.value);
+    outGrayscale.textContent = `${cfg.grayscale}%`;
+    applyVideoFilter(cfg, video);
+  });
+
+  wrap.querySelector('[data-action="resetFilters"]').addEventListener("click", () => {
+    resetVideoFilter(cfg, video);
+    setStatus(`${cfg.title}: filters reset.`);
+  });
+
   togglePlayPauseBtn.addEventListener("click", () => {
     if (video.paused) video.play().catch(() => {});
     else video.pause();
@@ -729,6 +988,7 @@ function createControlUI(cfg) {
       loopEndInput.value = cfg.loopEnd;
     }
     video.volume = cfg.volume;
+    video.playbackRate = cfg.playbackRate;
     video.currentTime = clamp(cfg.loopStart, 0, video.duration || cfg.loopStart);
     applyLoopBounds();
     refreshPlayPauseButton();
@@ -752,6 +1012,13 @@ function createControlUI(cfg) {
   video.addEventListener("play", refreshPlayPauseButton);
   video.addEventListener("pause", refreshPlayPauseButton);
 
+  // Sync playbackRate if browser resets it (e.g. after src change)
+  video.addEventListener("ratechange", () => {
+    if (Math.abs(video.playbackRate - cfg.playbackRate) > 0.01) {
+      video.playbackRate = cfg.playbackRate;
+    }
+  });
+
   cfg.ui = {
     titleInput,
     titleHeading,
@@ -760,6 +1027,8 @@ function createControlUI(cfg) {
     loopStartInput,
     loopEndInput,
     volumeInput,
+    speedInput,
+    outSpeed,
     zoomInput,
     panXInput,
     panYInput,
@@ -773,13 +1042,16 @@ function createControlUI(cfg) {
     refreshMuteState,
     refreshPlayPauseButton,
     refreshCurrentTimeOutput,
-    refreshPositionOutputs
+    refreshPositionOutputs,
+    refreshFilterOutputs
   };
 
   controls.appendChild(wrap);
   video.volume = cfg.volume;
+  video.playbackRate = cfg.playbackRate;
   video.muted = false;
   applyVideoPosition(cfg, video);
+  applyVideoFilter(cfg, video);
   refreshMuteState();
   refreshPlayPauseButton();
   refreshCurrentTimeOutput();
@@ -790,9 +1062,10 @@ function createControlUI(cfg) {
 
 function getSerializableConfig() {
   return {
-    version: 3,
+    version: 5,
     name: currentConfigName,
     layoutMode: currentLayoutMode,
+    gridGap: currentGridGap,
     exportedAt: new Date().toISOString(),
     videos: configs.map((cfg) => ({
       id: cfg.id,
@@ -803,10 +1076,15 @@ function getSerializableConfig() {
       loopStart: cfg.loopStart,
       loopEnd: cfg.loopEnd,
       volume: cfg.volume,
+      playbackRate: cfg.playbackRate,
       muted: getVideoByConfig(cfg).muted,
       panX: cfg.panX,
       panY: cfg.panY,
-      zoom: cfg.zoom
+      zoom: cfg.zoom,
+      brightness: cfg.brightness,
+      contrast: cfg.contrast,
+      saturation: cfg.saturation,
+      grayscale: cfg.grayscale
     }))
   };
 }
@@ -829,6 +1107,14 @@ function applyLoadedConfig(parsed, options = {}) {
   setDocumentTitle(parsed.name || options.fallbackName || "4 Video Wall");
   applyLayoutMode(parsed.layoutMode || "4x1");
 
+  const restoredGap = Number(parsed.gridGap ?? 0);
+  applyGridGap(restoredGap);
+  // sync the gap slider in the viewport panel if it exists
+  const gapSlider = document.querySelector('[data-role="gridGap"]');
+  const gapOut    = document.querySelector('[data-out="gridGap"]');
+  if (gapSlider) gapSlider.value = restoredGap;
+  if (gapOut)    gapOut.textContent = `${restoredGap}px`;
+
   parsed.videos.forEach((savedCfg) => {
     const cfg = configs.find((item) => item.id === savedCfg.id);
     if (!cfg) return;
@@ -839,27 +1125,37 @@ function applyLoadedConfig(parsed, options = {}) {
     cfg.loopStart = Number(savedCfg.loopStart ?? cfg.loopStart);
     cfg.loopEnd = Number(savedCfg.loopEnd ?? cfg.loopEnd);
     cfg.volume = Number(savedCfg.volume ?? cfg.volume);
+    cfg.playbackRate = Number(savedCfg.playbackRate ?? 1.0);
     cfg.sourceMode = savedCfg.sourceMode || "url";
     cfg.sourceValue = savedCfg.sourceValue || "";
     cfg.sourceFileName = savedCfg.sourceFileName || "";
     cfg.panX = Number(savedCfg.panX ?? 50);
     cfg.panY = Number(savedCfg.panY ?? 50);
     cfg.zoom = Number(savedCfg.zoom ?? 100);
+    cfg.brightness = Number(savedCfg.brightness ?? 100);
+    cfg.contrast   = Number(savedCfg.contrast   ?? 100);
+    cfg.saturation = Number(savedCfg.saturation ?? 100);
+    cfg.grayscale  = Number(savedCfg.grayscale  ?? 0);
 
     cfg.ui.titleInput.value = cfg.title;
     cfg.ui.titleHeading.textContent = cfg.title;
     cfg.ui.loopStartInput.value = cfg.loopStart;
     cfg.ui.loopEndInput.value = cfg.loopEnd;
     cfg.ui.volumeInput.value = cfg.volume;
+    cfg.ui.speedInput.value = cfg.playbackRate;
+    cfg.ui.outSpeed.textContent = `${cfg.playbackRate}×`;
     cfg.ui.outLoopStart.textContent = formatTime(cfg.loopStart);
     cfg.ui.outLoopEnd.textContent = formatTime(cfg.loopEnd);
     cfg.ui.outVolume.textContent = cfg.volume.toFixed(2);
 
     video.volume = cfg.volume;
+    video.playbackRate = cfg.playbackRate;
     video.muted = Boolean(savedCfg.muted);
 
     applyVideoPosition(cfg, video);
+    applyVideoFilter(cfg, video);
     cfg.ui.refreshPositionOutputs();
+    cfg.ui.refreshFilterOutputs();
 
     if (cfg.sourceMode === "url" && cfg.sourceValue) {
       cfg.ui.urlInput.value = cfg.sourceValue;
@@ -903,6 +1199,7 @@ async function unlockPlayback() {
   for (const cfg of configs) {
     const video = getVideoByConfig(cfg);
     video.volume = cfg.volume;
+    video.playbackRate = cfg.playbackRate;
     video.muted = false;
     try { await video.play(); } catch {}
   }
@@ -1089,6 +1386,13 @@ document.addEventListener("keydown", async (event) => {
   }
 
   if (isTyping) return;
+
+  // ── Alt+1–4: set active panel count ──
+  if (event.altKey && ["Digit1", "Digit2", "Digit3", "Digit4"].includes(event.code)) {
+    event.preventDefault();
+    setActivePanelCount(Number(event.code.replace("Digit", "")));
+    return;
+  }
 
   if (event.code === "Space" || event.code === "KeyP") { event.preventDefault(); togglePauseAll(); return; }
   if (event.code === "KeyL") { event.preventDefault(); toggleLayoutMode(); return; }

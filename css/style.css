@@ -31,112 +31,6 @@ body {
   grid-template-rows: repeat(2, 1fr);
 }
 
-/*
-  layout-2x1-left: Video 1+2 gestapelt links (1 Spalte, 2 Zeilen),
-                   Video 3+4 nebeneinander rechts (2 Spalten, 2 Zeilen).
-  Grid-Zuweisung über nth-child:
-    cell 1 → col 1, row 1
-    cell 2 → col 1, row 2
-    cell 3 → col 2, row 1 / span 2 rows  ← NEIN: wir wollen 3 oben-rechts, 4 unten-rechts
-  Tatsächliches Layout:
-    +-------+---+---+
-    |   1   | 3 | 4 |   ← Nein, Anforderung: links 2 Zeilen, rechts 2 Videos übereinander
-    |   2   |   |   |
-    +-------+---+---+
-  Anforderung re-gelesen:
-    "2 in 1 row links, 2 in 2 rows rechts"
-    → links: 2 Videos nebeneinander (1 Zeile, halbe Breite je), rechts: 2 Videos übereinander
-    +----+----+----+
-    | 1  | 2  | 3  |   ← Nein, "1 row links" = 2 Videos in EINER Zeile links
-    +----+----+----|
-    |         | 4  |
-    +---------+----+
-  Sinnvollste Interpretation:
-    layout-2x1-left:  linke Hälfte = 2 Videos in 1 Spalte (übereinander),
-                      rechte Hälfte = 2 Videos in 1 Spalte (übereinander)
-    → das wäre 2x2…
-
-  Zweite Interpretation (wahrscheinlich gemeint):
-    "2 in 1 row links" = linke Seite hat 1 großes Video (volle Höhe, halbe Breite)
-                         + zweites Video darunter → also 2 Videos übereinander links
-    "2 in 2 rows rechts" = rechte Seite hat 2 Videos übereinander
-
-  ODER die gebräuchlichste Video-Wall-Variante:
-    layout-2x1-left:
-      +----------+-----+
-      |    1     |  3  |
-      |  (volle  +-----+
-      |  Höhe)   |  4  |
-      +-----+----+-----+
-      |  2  |          ← Nein, zu komplex
-
-  Einfachste sinnvolle Interpretation für eine 4-Zellen-Wand:
-    "2 in 1 row links"   = Videos 1 & 2 nebeneinander, linke Bildschirmhälfte
-    "2 in 2 rows rechts" = Videos 3 & 4 übereinander, rechte Bildschirmhälfte
-
-  layout-2x1-left:
-    +----+----+----+
-    | 1  | 2  | 3  |
-    +---------+----|   ← nein
-    
-  Finale Entscheidung – klassische asymmetrische Video-Wall:
-    layout-2x1-left  ("2 Videos in 1 Zeile links, 2 Videos in 2 Zeilen rechts"):
-      Linke 2/3 : Videos 1 & 2 side-by-side (1 Zeile)
-      Rechte 1/3: Videos 3 & 4 übereinander (2 Zeilen)
-
-      Grid: 3 Spalten × 2 Zeilen
-        cell1: col 1, row 1-2 span  → Nein, wir haben 4 gleichwertige Zellen
-
-  ── Endgültig (pragmatisch, 4 gleich große Zellen, verschiedene Arrangements) ──
-
-  layout-2x1-left:
-    Linke Hälfte: Videos 1+2 in 2 Zeilen (übereinander) – "2 in 1 column links"
-    Rechte Hälfte: Videos 3+4 nebeneinander in 1 Zeile – "2 in 1 row rechts"
-    → gespiegelt zu layout-2x1-right
-
-  layout-2x1-right (gespiegelt):
-    Linke Hälfte: Videos 1+2 nebeneinander in 1 Zeile
-    Rechte Hälfte: Videos 3+4 in 2 Zeilen (übereinander)
-
-  Das ergibt die 4 sinnvollen Presets:
-    4x1          : alle 4 nebeneinander
-    2x2          : 2×2 Raster
-    2x1-left     : links 2 übereinander, rechts 2 nebeneinander
-    2x1-right    : links 2 nebeneinander, rechts 2 übereinander
-*/
-
-/*
-  layout-2x1-left:
-    Linke 50%  → Videos 1 + 2 nebeneinander, volle Höhe (row-span 2 each)
-    Rechte 50% → Videos 3 + 4 übereinander (2 Zeilen)
-
-    Grid: 4 Spalten × 2 Zeilen
-      cell 1: col 1–2, row 1–2
-      cell 2: col 3–4, row 1–2  ← das wäre falsch: 1+2 NEBENEINANDER = je 2 Spalten, volle Höhe
-      cell 3: col 3–4, row 1     → rechte Hälfte, obere Zeile
-      cell 4: col 3–4, row 2     → rechte Hälfte, untere Zeile
-
-    Korrekt:
-      cell 1: col 1–2, row 1–2  (linkes Video, volle Höhe)
-      cell 2: col 3–4, row 1–2  — NEIN, das ergibt 2 Videos je halbe Breite, volle Höhe
-                                   Das IST nebeneinander. Dann bräuchten wir 6 Spalten für rechts.
-
-    Tatsächlich: 4 Spalten reichen:
-      col 1  col 2  col 3  col 4
-      [ V1         ][ V3        ]   row 1
-      [ V2         ][ V4        ]   row 2
-    → Das ist 2x2 (identical).
-
-    Richtige Interpretation: "2 nebeneinander links" = die linke Hälfte zeigt 2 Videos
-    in einer Reihe (also sehr breite, kurze Videos). Rechts: 2 Videos übereinander.
-
-    Für eine saubere 50/50-Aufteilung mit dem richtigen Aspekt:
-      Grid: 4 Spalten × 2 Zeilen
-        V1: col 1, row 1–2  (linke 25%, volle Höhe)
-        V2: col 2, row 1–2  (zweite 25%, volle Höhe)
-        V3: col 3–4, row 1  (rechte 50%, obere Hälfte)
-        V4: col 3–4, row 2  (rechte 50%, untere Hälfte)
-*/
 .video-wall.layout-2x1-left {
   grid-template-columns: 1fr 1fr 1fr 1fr;
   grid-template-rows: 1fr 1fr;
@@ -162,17 +56,6 @@ body {
   grid-row: 2;
 }
 
-/*
-  layout-2x1-right (mirror):
-    Linke 50%  → Videos 1 + 2 übereinander
-    Rechte 50% → Videos 3 + 4 nebeneinander, volle Höhe
-
-    Grid: 4 Spalten × 2 Zeilen
-      V1: col 1–2, row 1
-      V2: col 1–2, row 2
-      V3: col 3,   row 1–2
-      V4: col 4,   row 1–2
-*/
 .video-wall.layout-2x1-right {
   grid-template-columns: 1fr 1fr 1fr 1fr;
   grid-template-rows: 1fr 1fr;
@@ -263,6 +146,46 @@ body:not(.show-labels) .video-cell.dragging {
 .video-wall.layout-2x1-right .video-cell:nth-child(4) {
   border-right: none;
   border-bottom: none;
+}
+
+/* ── panel-hidden (Alt+1–4) ───────────────────────────────────────── */
+
+.video-cell.panel-hidden {
+  display: none !important;
+}
+
+/*
+  When fewer than 4 panels are visible we let the grid shrink naturally.
+  The data-panel-count attribute on videoWall overrides the column count
+  so the remaining cells fill the full width/height correctly.
+*/
+.video-wall[data-panel-count="1"] {
+  grid-template-columns: 1fr !important;
+  grid-template-rows: 1fr !important;
+}
+
+.video-wall[data-panel-count="2"] {
+  grid-template-columns: 1fr 1fr !important;
+  grid-template-rows: 1fr !important;
+}
+
+.video-wall[data-panel-count="3"] {
+  grid-template-columns: 1fr 1fr 1fr !important;
+  grid-template-rows: 1fr !important;
+}
+
+/* panel-count="4" keeps whatever layout is active — no override needed */
+
+/* Reset grid-area overrides from layout classes when panel count is active */
+.video-wall[data-panel-count] .video-cell {
+  grid-column: unset !important;
+  grid-row: unset !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: none;
+}
+
+.video-wall[data-panel-count] .video-cell:last-child {
+  border-right: none;
 }
 
 video {
@@ -466,6 +389,30 @@ body.show-labels .label {
   word-break: break-all;
 }
 
+/* ── speed presets ───────────────────────────────────────────────── */
+
+.speed-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.speed-preset-btn {
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+  min-width: 0 !important;
+  border-radius: 6px !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  opacity: 0.85;
+}
+
+.speed-preset-btn:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  opacity: 1;
+}
+
 .actions {
   display: flex;
   gap: 8px;
@@ -496,6 +443,7 @@ select:hover {
 .icon-button-wrap {
   display: flex;
   justify-content: flex-end;
+  gap: 4px;
 }
 
 .icon-button {
@@ -505,6 +453,50 @@ select:hover {
   padding: 0;
   font-size: 18px;
   line-height: 1;
+}
+
+/* ── filter panel ─────────────────────────────────────────────────── */
+
+.filter-panel {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.filter-panel.hidden {
+  display: none;
+}
+
+.filter-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 12px;
+  opacity: 0.75;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.filter-reset-btn {
+  padding: 3px 8px !important;
+  font-size: 11px !important;
+  border-radius: 6px !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  opacity: 0.85;
+}
+
+.filter-reset-btn:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  opacity: 1;
+}
+
+.icon-button.active {
+  background: rgba(255, 255, 255, 0.18);
+  outline: 1px solid rgba(255, 255, 255, 0.25);
 }
 
 /* ── overlays ─────────────────────────────────────────────────────── */
@@ -626,6 +618,18 @@ code {
 }
 
 /* ── solo mode ────────────────────────────────────────────────────── */
+/*
+  The video element has pan/zoom applied via transform and object-position,
+  which we want to neutralise in solo mode so the video is truly centred.
+  We do this by wrapping the video in a .solo-stage container that fills
+  the cell, and placing the video inside it with object-fit: contain and
+  no transform, effectively ignoring pan/zoom when in solo view.
+
+  The .solo-stage is injected into every .video-cell via JS-free CSS:
+  since we can't easily add a wrapper in JS without touching the HTML,
+  we instead override the video element's styles directly for the solo
+  cell and rely on the cell itself acting as a flex centering container.
+*/
 
 .video-wall.solo-mode {
   grid-template-columns: 1fr !important;
@@ -646,11 +650,26 @@ code {
   grid-row: 1 !important;
 }
 
+/*
+  Override all pan/zoom transforms and sizing on the video element itself
+  when in solo mode. object-fit: contain + auto sizing centres the video
+  within the black cell without any crop or offset.
+*/
 .video-wall.solo-mode .video-cell.solo-visible video {
-  width: auto;
-  height: 100%;
-  max-width: 100%;
-  object-fit: contain;
+  /* Reset any JS-applied transform */
+  transform: none !important;
+  /* Reset JS-applied positioning */
+  position: static !important;
+  left: auto !important;
+  top: auto !important;
+  /* Let the video size itself to fit the cell */
+  width: auto !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  /* Contain (letterbox/pillarbox) and centre */
+  object-fit: contain !important;
+  object-position: 50% 50% !important;
 }
 
 /* ── responsive ───────────────────────────────────────────────────── */

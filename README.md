@@ -1,6 +1,6 @@
 # 4 Video Wall
 
-A browser-based 4-video wall player with per-video loop controls, volume control, pan and zoom, solo mode, layout switching, fullscreen support, keyboard shortcuts, config save/load, and a HUD for live adjustments.
+A browser-based 4-video wall player with per-video loop controls, volume control, playback speed, pan and zoom, per-video filter controls, solo mode, layout switching, adjustable grid gap, fullscreen support, keyboard shortcuts, config save/load, and a HUD for live adjustments.
 
 ## Features
 
@@ -10,29 +10,40 @@ A browser-based 4-video wall player with per-video loop controls, volume control
   - `2x2`
   - `2x1-left`
   - `2x1-right`
+- Adjustable grid gap (`0–32px`)
 - Per-video controls:
   - title
   - source via URL
   - source via local file
   - volume
   - mute / unmute
+  - playback speed (0.25×–4×) with preset buttons
   - loop start / loop end
   - seek / current time
   - play / pause
   - pan X / pan Y
   - zoom (100–300%)
+  - filter panel with:
+    - brightness (0–200%)
+    - contrast (0–200%)
+    - saturation (0–200%)
+    - grayscale (0–100%)
+  - dedicated filter reset button
 - Global controls:
   - mute / unmute all
   - pause / play all
+  - global playback speed with preset buttons
   - fullscreen
   - layout toggle
-- Solo mode per video
+- Solo mode per video (centered, pan/zoom ignored)
+- Active panel count (show first 1–4 panels)
 - Drag to pan and scroll to zoom when HUD is hidden
 - Quick action bar when HUD is hidden
 - Help overlay
 - Save / load JSON configs
 - Toast messages and action overlay feedback
 - Local-file aware config restore behavior
+- Config persistence for layout gap and per-video filter values
 
 ---
 
@@ -80,17 +91,18 @@ Then open [http://localhost:8080](http://localhost:8080) in your browser.
 
 ### Keyboard Shortcuts
 
-| Key               | Action                         |
-| ----------------- | ------------------------------ |
-| `Enter`           | Toggle menu / HUD              |
-| `H`               | Toggle help overlay            |
-| `Space` / `P`     | Pause / resume all videos      |
-| `M`               | Mute / unmute all videos       |
-| `1` - `4`         | Mute / unmute video 1-4        |
-| `Shift + 1` - `4` | Pause / resume video 1-4       |
-| `Ctrl + 1` - `4`  | Toggle solo mode for video 1-4 |
-| `L`               | Cycle to next layout           |
-| `Esc`             | Exit solo mode                 |
+| Key               | Action                                            |
+| ----------------- | ------------------------------------------------- |
+| `Enter`           | Toggle menu / HUD                                 |
+| `H`               | Toggle help overlay                               |
+| `Space` / `P`     | Pause / resume all videos                         |
+| `M`               | Mute / unmute all videos                          |
+| `1` - `4`         | Mute / unmute video 1-4                           |
+| `Shift + 1` - `4` | Pause / resume video 1-4                          |
+| `Ctrl + 1` - `4`  | Toggle solo mode for video 1-4                    |
+| `Alt + 1` - `4`   | Show only first N panels (press again to restore) |
+| `L`               | Cycle to next layout                              |
+| `Esc`             | Exit solo mode                                    |
 
 ### Mouse Behavior (HUD hidden)
 
@@ -110,6 +122,8 @@ The HUD contains:
 * global action buttons
 * current status area
 * viewport layout selector
+* viewport gap / border slider (`0–32px`)
+* global playback speed slider with preset buttons
 * individual controls for each video
 
 Each video block includes:
@@ -119,6 +133,7 @@ Each video block includes:
 * URL loader
 * source status
 * volume slider
+* playback speed slider (0.25×–4×) with preset buttons
 * loop start / loop end in one row
 * current time slider
 * current playback time with total duration in brackets
@@ -130,19 +145,67 @@ Each video block includes:
 * set loop end to current position
 * reset pan and zoom
 * icon-only mute toggle button
+* icon-only 🎨 filter button next to the mute button in the title row
+* collapsible filter panel per video
+* filter reset button in the filter panel header
+* brightness slider (0–200%)
+* contrast slider (0–200%)
+* saturation slider (0–200%)
+* grayscale slider (0–100%)
+
+Filter panel behavior:
+
+* each video has its own collapsible filter panel
+* the panel is opened via the 🎨 button in the title bar
+* the 🎨 button gets a subtle active state while the panel is open
+* filter values are applied per video and preserved in saved configs
+* the reset button in the panel header resets all four filter values to defaults
 
 ---
 
 ## Solo Mode
 
-Solo mode shows only one selected video.
+Solo mode shows only one selected video, centered and letter/pillarboxed.
 
 Behavior:
 
 * `Ctrl + 1-4` activates solo mode for the selected video
 * pressing the same shortcut again toggles solo mode off
 * when solo mode is cleared, all videos resume playback
-* in solo mode, the visible video uses the maximum available **height**, not width
+* in solo mode, the visible video uses `object-fit: contain` to fill the available space without cropping
+* pan and zoom values for the video are preserved in the background but do not affect solo view — the video is always centered cleanly at its natural aspect ratio
+* pan and zoom resume as configured when solo mode is exited
+
+---
+
+## Active Panel Count
+
+The active panel count controls how many video panels are shown at once without entering solo mode.
+
+Behavior:
+
+* `Alt + 1` shows only the first panel
+* `Alt + 2` shows only the first two panels
+* `Alt + 3` shows only the first three panels
+* `Alt + 4` shows all four panels
+* pressing the same key again restores all four panels
+* hidden panels are only visually hidden — all video state, loop points, volume, speed, pan, and zoom settings are preserved
+* the visible panels expand to fill the full screen width
+* the active layout mode is temporarily overridden to a simple single-row grid for the visible panels
+
+---
+
+## Playback Speed
+
+Each video has an independent playback speed control.
+
+Behavior:
+
+* speed range is 0.25× to 4×
+* a slider and a row of preset buttons (0.25×, 0.5×, 0.75×, 1×, 1.25×, 1.5×, 2×, 4×) are available per video
+* the global speed control in the Viewport section of the HUD sets all videos to the same speed simultaneously
+* speed is preserved across config save and load
+* speed is re-applied automatically after source changes to prevent browser reset behavior
 
 ---
 
@@ -191,6 +254,7 @@ Left half: videos 1 and 2 stacked. Right half: videos 3 and 4 side by side at fu
 
 * Videos do **not** start muted by default
 * each video uses its configured `volume`
+* each video uses its configured `playbackRate`
 * loop playback is controlled manually through `loopStart` and `loopEnd`
 * when a video reaches `loopEnd`, it jumps back to `loopStart`
 
@@ -207,6 +271,7 @@ The app can export and import a JSON configuration file.
 * config version
 * config name
 * layout mode
+* grid gap
 * export timestamp
 * per video:
 
@@ -218,10 +283,23 @@ The app can export and import a JSON configuration file.
   * loop start
   * loop end
   * volume
+  * playback rate
   * muted state
   * pan X
   * pan Y
   * zoom
+  * brightness
+  * contrast
+  * saturation
+  * grayscale
+
+### Version notes
+
+* config format version is now `5`
+* `gridGap` is stored globally
+* filter values are stored per video
+* on config load, the saved grid gap is restored and synchronized back into the HUD slider
+* on config load, all saved filter values are restored per video
 
 ### Important limitation for local files
 
@@ -239,66 +317,87 @@ That means:
 
 ```json
 {
-  "version": 3,
-  "name": "My Video Wall",
-  "layoutMode": "4x1",
-  "exportedAt": "2026-03-22T09:07:58.264Z",
+  "version": 5,
+  "name": "Wall Of Cats",
+  "layoutMode": "2x2",
+  "gridGap": 14,
+  "exportedAt": "2026-03-28T10:41:37.367Z",
   "videos": [
     {
       "id": "video1",
-      "title": "Video 1",
+      "title": "Window Watch",
       "sourceMode": "url",
-      "sourceValue": "https://example.com/video.mp4",
+      "sourceValue": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
       "sourceFileName": "",
       "loopStart": 0,
-      "loopEnd": 10,
-      "volume": 1.0,
+      "loopEnd": 6.5,
+      "volume": 0.25,
+      "playbackRate": 1,
       "muted": false,
-      "panX": 50,
-      "panY": 50,
-      "zoom": 100
+      "panX": 42,
+      "panY": 56,
+      "zoom": 112,
+      "brightness": 108,
+      "contrast": 104,
+      "saturation": 118,
+      "grayscale": 0
     },
     {
       "id": "video2",
-      "title": "Video 2",
+      "title": "Soft Landing",
       "sourceMode": "url",
-      "sourceValue": "2.mp4",
+      "sourceValue": "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
       "sourceFileName": "",
-      "loopStart": 0,
-      "loopEnd": 10,
-      "volume": 1.0,
+      "loopStart": 3,
+      "loopEnd": 15.2,
+      "volume": 0.8,
+      "playbackRate": 1,
       "muted": false,
-      "panX": 50,
-      "panY": 50,
-      "zoom": 100
+      "panX": 61,
+      "panY": 47,
+      "zoom": 105,
+      "brightness": 96,
+      "contrast": 112,
+      "saturation": 106,
+      "grayscale": 8
     },
     {
       "id": "video3",
-      "title": "Video 3",
+      "title": "Quiet Patrol",
       "sourceMode": "url",
-      "sourceValue": "clips/3.mp4",
+      "sourceValue": "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
       "sourceFileName": "",
-      "loopStart": 0,
-      "loopEnd": 10,
-      "volume": 1.0,
+      "loopStart": 12,
+      "loopEnd": 24,
+      "volume": 0.5,
+      "playbackRate": 0.75,
       "muted": false,
-      "panX": 50,
-      "panY": 50,
-      "zoom": 100
+      "panX": 38,
+      "panY": 63,
+      "zoom": 120,
+      "brightness": 102,
+      "contrast": 98,
+      "saturation": 92,
+      "grayscale": 18
     },
     {
       "id": "video4",
-      "title": "Video 4",
+      "title": "Late Night Zoomies",
       "sourceMode": "url",
-      "sourceValue": "4.mp4",
+      "sourceValue": "https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
       "sourceFileName": "",
-      "loopStart": 0,
-      "loopEnd": 10,
-      "volume": 1.0,
+      "loopStart": 5,
+      "loopEnd": 17.5,
+      "volume": 0.65,
+      "playbackRate": 1.25,
       "muted": false,
-      "panX": 50,
-      "panY": 50,
-      "zoom": 100
+      "panX": 54,
+      "panY": 41,
+      "zoom": 110,
+      "brightness": 115,
+      "contrast": 121,
+      "saturation": 128,
+      "grayscale": 0
     }
   ]
 }
@@ -336,7 +435,12 @@ Relevant visual systems:
 * quick action bar
 * toast notifications
 * central action icon overlay
-* solo mode styling
+* solo mode styling (centered, contain-fit, pan/zoom neutralized)
+* active panel count grid overrides
+* speed preset button row
+* collapsible per-video filter panel
+* active-state styling for the 🎨 button
+* grid gap spacing applied directly on the wall container
 * responsive loop and pan input layout for small screens
 
 ---
@@ -347,6 +451,7 @@ On smaller screens:
 
 * loop start / end fields stack vertically
 * pan X / pan Y fields stack vertically
+* filter controls stack naturally within each video block
 * HUD remains scrollable
 * quick bar stays compact and centered
 
@@ -362,6 +467,7 @@ Things that may vary by browser:
 * fullscreen handling
 * file URL behavior
 * codec support for MP4 / WebM / other video formats
+* supported playback rate range (most browsers support 0.25×–4×; some allow higher values)
 
 ---
 
@@ -372,7 +478,11 @@ Common changes you can make in `js/script.js`:
 * change default video files
 * change default loop points
 * change default volume values
+* change default playback speed
+* change default filter values
+* change the speed preset values in the `SPEED_PRESETS` array
 * change default layout
+* change default grid gap
 * change keyboard shortcuts
 * add more metadata per video
 * extend config structure
@@ -387,6 +497,10 @@ Common changes in `css/style.css`:
 * quick bar appearance
 * responsive breakpoints
 * grid definitions for custom layout modes
+* active panel count grid overrides
+* filter panel appearance
+* active 🎨 button styling
+* grid gap related spacing
 
 ---
 
@@ -395,9 +509,11 @@ Common changes in `css/style.css`:
 * Local files cannot be restored automatically from saved config
 * Browser autoplay restrictions may require a user interaction first
 * Synchronization is visual/manual, not frame-accurate across videos
-* Supported playback depends on browser codec support
+* Supported playback rate range depends on browser codec support
 * If panning a video does not work as intended after changing the layout, use zoom or double click to reset
-* Panning a video to center screen manually in solo mode may be necessary
+* Pan and zoom have no visible effect while a video is in solo mode — they are preserved and resume when solo mode is exited
+* Active panel count (`Alt + 1–4`) overrides the current layout grid temporarily; switching layouts while a panel count is active will take effect once the panel count is cleared
+* Filter rendering depends on browser support for CSS/video filter pipelines, but modern Chromium-based browsers and Firefox generally handle this well
 
 ---
 
