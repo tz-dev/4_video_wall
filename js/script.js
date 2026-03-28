@@ -141,6 +141,7 @@ const quickFullscreenBtn = document.getElementById("quickFullscreenBtn");
 const quickLoadConfigInput = document.getElementById("quickLoadConfigInput");
 
 let playbackUnlocked = false;
+let autoplayEnabled = true;
 let currentConfigName = "4 Video Wall";
 let currentLayoutMode = "4x1";
 let actionOverlayTimer = null;
@@ -599,7 +600,13 @@ function setVideoSource(video, cfg, src, statusEl, options = {}) {
 
   video.addEventListener("canplay", function handler() {
     video.removeEventListener("canplay", handler);
-    video.play().catch(() => {});
+
+    if (autoplayEnabled) {
+      video.play().catch(() => {});
+    } else {
+      updateLabel(cfg, video);
+      if (cfg.ui) cfg.ui.refreshPlayPauseButton();
+    }
   }, { once: true });
 
   video.src = src;
@@ -925,6 +932,11 @@ function createLayoutUI() {
     </div>
 
     <div class="row">
+      <label>Autoplay</label>
+      <input type="checkbox" data-role="autoplay" style="width: 20px">
+    </div>
+
+    <div class="row">
       <label>Global Speed</label>
       <input type="range" min="0.25" max="4" step="0.05" value="1" data-role="globalSpeed">
       <output data-out="globalSpeed">1×</output>
@@ -939,8 +951,12 @@ function createLayoutUI() {
   layoutDescStatus = wrap.querySelector('[data-role="layoutDesc"]');
   layoutNextBtn = wrap.querySelector('[data-action="toggleLayout"]');
   panelOrderBar = wrap.querySelector('[data-role="panelOrderBar"]');
+  const autoplayInput = wrap.querySelector('[data-role="autoplay"]');
 
   layoutSelect.value = currentLayoutMode;
+
+  autoplayInput.checked = autoplayEnabled;
+
   layoutSelect.addEventListener("change", () => {
     if (activePanelCount !== null && activePanelCount < 4) {
       layoutSelect.value = currentLayoutMode;
@@ -949,6 +965,21 @@ function createLayoutUI() {
     }
     applyLayoutMode(layoutSelect.value);
     setStatus(`Layout: ${LAYOUT_DESCRIPTIONS[currentLayoutMode] || currentLayoutMode}`);
+  });
+
+  autoplayInput.addEventListener("change", () => {
+    autoplayEnabled = autoplayInput.checked;
+
+    if (!autoplayEnabled) {
+      configs.forEach((cfg) => {
+        const video = getVideoByConfig(cfg);
+        video.pause();
+        cfg.ui?.refreshPlayPauseButton();
+      });
+    }
+
+    setStatus(`Autoplay ${autoplayEnabled ? "enabled" : "disabled"}.`);
+    updateGlobalButtons();
   });
 
   layoutNextBtn.addEventListener("click", toggleLayoutMode);
@@ -1738,6 +1769,7 @@ function getSerializableConfig() {
     panelOrder: configs.map((cfg) => cfg.id),
     activePanelCount,
     exportedAt: new Date().toISOString(),
+    autoplay: autoplayEnabled,
     videos: configs.map((cfg) => ({
       id: cfg.id,
       title: cfg.title,
@@ -1782,6 +1814,9 @@ function applyLoadedConfig(parsed, options = {}) {
 
   setDocumentTitle(parsed.name || options.fallbackName || "4 Video Wall");
   applyLayoutMode(parsed.layoutMode || "4x1");
+  autoplayEnabled = parsed.autoplay !== undefined ? Boolean(parsed.autoplay) : true;
+  const autoplayInput = document.querySelector('[data-role="autoplay"]');
+  if (autoplayInput) autoplayInput.checked = autoplayEnabled;
 
   const restoredGap = Number(parsed.gridGap ?? 0);
   applyGridGap(restoredGap);
@@ -1912,9 +1947,12 @@ async function unlockPlayback() {
     video.volume = cfg.volume;
     video.playbackRate = cfg.playbackRate;
     video.muted = false;
-    try {
-      await video.play();
-    } catch {}
+
+    if (autoplayEnabled) {
+      try {
+        await video.play();
+      } catch {}
+    }
   }
 
   updateGlobalButtons();
@@ -1972,11 +2010,17 @@ function clearSoloMode() {
   soloIndex = null;
   videoWall.classList.remove("solo-mode");
   document.querySelectorAll(".video-cell").forEach((cell) => cell.classList.remove("solo-visible"));
+
   configs.forEach((cfg) => {
     const video = getVideoByConfig(cfg);
-    video.play().catch(() => {});
+    if (autoplayEnabled) {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
     cfg.ui.refreshPlayPauseButton();
   });
+
   updateGlobalButtons();
 }
 
@@ -2095,7 +2139,10 @@ quickLoadConfigInput.addEventListener("change", async (e) => {
   quickLoadConfigInput.value = "";
 });
 
-document.addEventListener("pointerdown", () => unlockPlayback());
+document.addEventListener("pointerdown", (e) => {
+  if (e.target.closest("#hud")) return;
+  unlockPlayback();
+});
 
 document.addEventListener("mousemove", () => {
   if (hud.classList.contains("hidden")) showQuickBar();
