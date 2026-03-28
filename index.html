@@ -10,19 +10,19 @@
     <div id="videoWall" class="video-wall layout-4x1">
       <div class="video-cell">
         <div class="label" id="label1">1</div>
-        <video id="video1" playsinline preload="auto" loop src=""></video>
+        <video id="video1" playsinline preload="auto" src=""></video>
       </div>
       <div class="video-cell">
         <div class="label" id="label2">2</div>
-        <video id="video2" playsinline preload="auto" loop src=""></video>
+        <video id="video2" playsinline preload="auto" src=""></video>
       </div>
       <div class="video-cell">
         <div class="label" id="label3">3</div>
-        <video id="video3" playsinline preload="auto" loop src=""></video>
+        <video id="video3" playsinline preload="auto" src=""></video>
       </div>
       <div class="video-cell">
         <div class="label" id="label4">4</div>
-        <video id="video4" playsinline preload="auto" loop src=""></video>
+        <video id="video4" playsinline preload="auto" src=""></video>
       </div>
     </div>
 
@@ -46,10 +46,13 @@
       </div>
 
       <div class="hud-note">
-        <b>Enter</b> toggles menu. <b>H</b> toggles help. <b>Space</b> or <b>P</b> toggles play/pause all.
-        <b>M</b> toggles mute all. <b>1</b>-<b>4</b> mute/unmute single video.
-        <b>Shift + 1</b>-<b>4</b> pause/resume single video. <b>Ctrl + 1</b>-<b>4</b> toggles solo view.
-        <b>Alt + 1</b>-<b>4</b> shows first N panels. Close menu to drag videos.
+        <ul>
+          <li><b>Enter</b> toggles menu. <b>H</b> toggles help. <b>Space</b> or <b>P</b> toggles play/pause all.</li>
+          <li><b>M</b> toggles mute all. <b>1</b>-<b>4</b> mute/unmute single video.</li>
+          <li><b>Shift + 1</b>-<b>4</b> pause/resume single video. <b>Ctrl + 1</b>-<b>4</b> toggles solo view.</li>
+          <li><b>Alt + 1</b>-<b>4</b> shows first N panels. Close menu to drag videos.</li>
+          <li><b>Drag and drop</b> active panels in viewport for changing order</li>
+        </ul>
       </div>
 
       <div id="globalStatus" class="global-status">Ready.</div>
@@ -72,17 +75,19 @@
           <div><b>Shift + 1</b>-<b>4</b></div><div>Pause/resume video 1-4</div>
           <div><b>Ctrl + 1</b>-<b>4</b></div><div>Toggle solo view for video 1-4</div>
           <div><b>Alt + 1</b>-<b>4</b></div><div>Show first N panels only (press same key again to restore all)</div>
-          <div><b>L</b></div><div>Switch viewport layout</div>
+          <div><b>L</b></div><div>Switch viewport layout (only when 4 panels are visible)</div>
           <div><b>Esc</b></div><div>Exit solo view</div>
           <div><b>Drag (menu closed)</b></div><div>Pan video within its cell</div>
           <div><b>Scroll (menu closed)</b></div><div>Zoom video within its cell (100–300%)</div>
           <div><b>Double-click (menu closed)</b></div><div>Reset pan &amp; zoom to default</div>
+          <div><b>Viewport Icons</b></div><div>Click icons 1–4 to show first N panels, drag icons horizontally to reorder panels and menu sections</div>
+          <div><b>Fade</b></div><div>Per-video fade in/out to black or white at video or loop boundaries</div>
           <div><b>Mouse move</b></div><div>Show quick action bar when menu is hidden</div>
         </div>
 
         <p class="help-note">
           Load a config to start.
-          Saving config stores config name, layout mode, title, source mode, URL, loop points, volume, mute state, playback speed, pan position, and zoom level for all videos in one JSON file.
+          Saving config stores config name, layout mode, current panel visibility, panel order, title, source mode, URL, loop points, volume, mute state, playback speed, pan position, zoom, filters, and fade settings.
           Browser-selected local files cannot be restored automatically after reload for security reasons, so those entries are marked and must be re-selected.
         </p>
       </div>

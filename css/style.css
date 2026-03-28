@@ -92,7 +92,6 @@ body {
   cursor: default;
 }
 
-/* Shown when HUD is hidden: indicate the cell is draggable */
 body:not(.show-labels) .video-cell {
   cursor: grab;
 }
@@ -118,7 +117,6 @@ body:not(.show-labels) .video-cell.dragging {
   border-bottom: none;
 }
 
-/* 2x1-left border cleanup */
 .video-wall.layout-2x1-left .video-cell:nth-child(1),
 .video-wall.layout-2x1-left .video-cell:nth-child(2) {
   border-bottom: none;
@@ -133,7 +131,6 @@ body:not(.show-labels) .video-cell.dragging {
   border-bottom: none;
 }
 
-/* 2x1-right border cleanup */
 .video-wall.layout-2x1-right .video-cell:nth-child(1) {
   border-bottom: none;
 }
@@ -148,17 +145,10 @@ body:not(.show-labels) .video-cell.dragging {
   border-bottom: none;
 }
 
-/* ── panel-hidden (Alt+1–4) ───────────────────────────────────────── */
-
 .video-cell.panel-hidden {
   display: none !important;
 }
 
-/*
-  When fewer than 4 panels are visible we let the grid shrink naturally.
-  The data-panel-count attribute on videoWall overrides the column count
-  so the remaining cells fill the full width/height correctly.
-*/
 .video-wall[data-panel-count="1"] {
   grid-template-columns: 1fr !important;
   grid-template-rows: 1fr !important;
@@ -174,9 +164,6 @@ body:not(.show-labels) .video-cell.dragging {
   grid-template-rows: 1fr !important;
 }
 
-/* panel-count="4" keeps whatever layout is active — no override needed */
-
-/* Reset grid-area overrides from layout classes when panel count is active */
 .video-wall[data-panel-count] .video-cell {
   grid-column: unset !important;
   grid-row: unset !important;
@@ -196,6 +183,43 @@ video {
   background: #000;
   will-change: transform, object-position;
   pointer-events: none;
+  position: relative;
+  z-index: 1;
+}
+
+/* fade overlay injected by JS */
+.fade-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 2;
+}
+
+.fade-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.fade-field {
+  display: grid;
+  grid-template-columns: 1fr 70px;
+  gap: 8px;
+  align-items: center;
+}
+
+.fade-field label {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.fade-field output {
+  text-align: right;
+  font-size: 12px;
+  opacity: 0.9;
 }
 
 .label {
@@ -209,7 +233,7 @@ video {
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.2s ease;
-  z-index: 2;
+  z-index: 3;
 }
 
 body.show-labels .label {
@@ -321,6 +345,7 @@ body.show-labels .label {
 .row input[type="text"],
 .row input[type="url"],
 .row input[type="file"],
+.row select,
 .source-row input[type="text"],
 .source-row input[type="url"],
 .source-row input[type="file"],
@@ -386,7 +411,35 @@ body.show-labels .label {
   font-size: 11px;
   opacity: 0.75;
   margin: 6px 0 8px;
-  word-break: break-all;
+  word-break: break-word;
+}
+
+/* panel selector / ordering */
+.panel-order-item {
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding: 0 0.75rem !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: grab !important;
+  user-select: none;
+}
+
+.panel-order-item:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
+}
+
+.panel-order-item.active {
+  background: rgba(255, 255, 255, 0.22) !important;
+  outline: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.panel-order-item.dragging {
+  opacity: 0.45;
+  cursor: grabbing !important;
 }
 
 /* ── speed presets ───────────────────────────────────────────────── */
@@ -438,6 +491,13 @@ button:hover,
 .inline-file-button span:hover,
 select:hover {
   background: #3a3a3a;
+}
+
+button:disabled,
+select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #232323 !important;
 }
 
 .icon-button-wrap {
@@ -618,18 +678,6 @@ code {
 }
 
 /* ── solo mode ────────────────────────────────────────────────────── */
-/*
-  The video element has pan/zoom applied via transform and object-position,
-  which we want to neutralise in solo mode so the video is truly centred.
-  We do this by wrapping the video in a .solo-stage container that fills
-  the cell, and placing the video inside it with object-fit: contain and
-  no transform, effectively ignoring pan/zoom when in solo view.
-
-  The .solo-stage is injected into every .video-cell via JS-free CSS:
-  since we can't easily add a wrapper in JS without touching the HTML,
-  we instead override the video element's styles directly for the solo
-  cell and rely on the cell itself acting as a flex centering container.
-*/
 
 .video-wall.solo-mode {
   grid-template-columns: 1fr !important;
@@ -650,26 +698,22 @@ code {
   grid-row: 1 !important;
 }
 
-/*
-  Override all pan/zoom transforms and sizing on the video element itself
-  when in solo mode. object-fit: contain + auto sizing centres the video
-  within the black cell without any crop or offset.
-*/
 .video-wall.solo-mode .video-cell.solo-visible video {
-  /* Reset any JS-applied transform */
   transform: none !important;
-  /* Reset JS-applied positioning */
   position: static !important;
   left: auto !important;
   top: auto !important;
-  /* Let the video size itself to fit the cell */
   width: auto !important;
   height: 100% !important;
   max-width: 100% !important;
   max-height: 100% !important;
-  /* Contain (letterbox/pillarbox) and centre */
   object-fit: contain !important;
   object-position: 50% 50% !important;
+}
+
+/* keep fade overlay active in solo mode */
+.video-wall.solo-mode .video-cell.solo-visible .fade-overlay {
+  inset: 0;
 }
 
 /* ── responsive ───────────────────────────────────────────────────── */
@@ -680,8 +724,29 @@ code {
     grid-template-columns: 1fr;
   }
 
+  .fade-row {
+    grid-template-columns: 1fr;
+  }
+
+  .fade-field {
+    grid-template-columns: 1fr 90px;
+  }
+
   .loop-field,
   .pan-field {
     grid-template-columns: 1fr 90px;
+  }
+
+  .help-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .row,
+  .source-row {
+    grid-template-columns: 1fr;
+  }
+
+  .row output {
+    text-align: left;
   }
 }

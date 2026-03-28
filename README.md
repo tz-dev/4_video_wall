@@ -1,6 +1,6 @@
 # 4 Video Wall
 
-A browser-based 4-video wall player for up to four simultaneous videos, with independent looping, per-video audio/speed/pan/zoom/filter control, solo mode, layout switching, fullscreen, keyboard shortcuts, JSON config save/load, and a live HUD.
+A browser-based 4-video wall player for up to four simultaneous videos, with independent looping, per-video audio/speed/pan/zoom/filter/fade control, drag-and-drop panel reordering, solo mode, layout switching, fullscreen, keyboard shortcuts, JSON config save/load, and a live HUD.
 
 ## Features
 
@@ -17,6 +17,7 @@ A browser-based 4-video wall player for up to four simultaneous videos, with ind
   - pan X / pan Y
   - zoom (`100–300%`)
   - filters: brightness, contrast, saturation, grayscale
+  - fade settings: mode (`off`, `to black`, `to white`), fade-in duration, fade-out duration
   - reset for pan/zoom and filters
 - Global controls:
   - play / pause all
@@ -26,6 +27,9 @@ A browser-based 4-video wall player for up to four simultaneous videos, with ind
   - fullscreen
 - Solo mode per video
 - Active panel count (`1–4` visible panels)
+- Panel order controls:
+  - drag-and-drop reordering via viewport panel icons
+  - reordered presentation is reflected in both viewport and HUD control order
 - Hidden-HUD interaction:
   - drag to pan
   - scroll to zoom
@@ -33,7 +37,7 @@ A browser-based 4-video wall player for up to four simultaneous videos, with ind
 - Help overlay
 - Toast / action overlay feedback
 - Save / load JSON configs
-- Config persistence for layout gap, playback, pan/zoom, filters, and per-video settings
+- Config persistence for layout gap, panel order, active panel count, playback, pan/zoom, filters, fades, and per-video settings
 - Local-file aware restore behavior
 
 ---
@@ -107,6 +111,15 @@ Then open [http://localhost:8080](http://localhost:8080).
 | Scroll       | Zoom (`100–300%`)         |
 | Double-click | Reset pan and zoom        |
 
+### HUD Drag-and-Drop Behavior
+
+| Action                          | Effect                                                     |
+| ------------------------------- | ---------------------------------------------------------- |
+| Drag panel icon in viewport HUD | Reorder panel presentation order                           |
+| Drop panel icon between others  | Insert panel at the dropped position                       |
+| Click panel icon `1–4`          | Show first N panels in current order                       |
+| Reorder panels                  | Reorders both viewport cells and the matching HUD sections |
+
 ---
 
 ## Interface
@@ -126,9 +139,17 @@ Each video block includes:
 * play / pause
 * jump/set loop controls
 * mute toggle
+* fade mode and fade timings
 * filter toggle with collapsible filter panel
 * filter reset
 * brightness, contrast, saturation, grayscale
+
+The viewport block includes:
+
+* layout selector and next-layout button
+* panel order / panel visibility icons
+* grid gap
+* global playback speed with presets
 
 ---
 
@@ -144,6 +165,22 @@ The player supports four layouts:
 * `2x1-right` — videos 1-2 stacked on the left, videos 3-4 side by side on the right
 
 `L`, the HUD selector, and the quick bar all switch or reflect the current layout.
+
+### Panel Ordering / Drag and Drop
+
+The HUD viewport section contains panel icons `1–4`.
+
+* clicking an icon shows the first `N` panels in the **current order**
+* dragging one icon horizontally onto another position reorders the presentation
+* the reorder affects:
+
+  * viewport panel order
+  * HUD video-control block order
+  * visible-panel logic (`show first N`)
+  * saved config panel order
+* labels are refreshed after reordering so numbering always matches the current presentation order
+
+This makes it possible to create a different visual sequence without changing the underlying video IDs.
 
 ### Solo Mode
 
@@ -161,18 +198,51 @@ Solo mode shows one selected video centered with `object-fit: contain`.
 `Alt` + `1`-`4` limits the wall to the first `1–4` visible panels.
 
 * pressing the same shortcut again restores all four
-* hidden panels keep their playback state, loop points, volume, speed, pan, zoom, and filters
+* hidden panels keep their playback state, loop points, volume, speed, pan, zoom, filters, and fade settings
 * visible panels expand to fill the available width
 * the normal layout is temporarily overridden while panel count mode is active
+* because the feature always shows the **first N panels in current order**, drag-and-drop reordering directly affects which panels are shown
 
 ### Playback
 
 * videos do **not** start muted by default
 * each video uses its configured volume and playback rate
-* looping is handled manually through `loopStart` and `loopEnd`
+* full-length playback can use normal video looping behavior when no custom loop end is defined
+* custom looping is handled manually through `loopStart` and `loopEnd`
 * reaching `loopEnd` jumps playback back to `loopStart`
 * playback rate is re-applied after source changes to avoid browser reset behavior
 * autoplay still depends on browser interaction policies and is unlocked on first pointer/key interaction
+
+### Fade Settings
+
+Each video supports independent fade transitions.
+
+Fade parameters:
+
+* `fadeMode`
+
+  * `none`
+  * `black`
+  * `white`
+* `fadeIn`
+* `fadeOut`
+
+Behavior:
+
+* fade timings are normalized against the active playback segment
+* if a custom loop is defined, fade limits are based on the loop segment:
+
+  * `loopStart → loopEnd`
+* if no custom loop is defined, fade limits are based on the full video duration
+* fade-in happens at the start of the active segment
+* fade-out happens at the end of the active segment
+* fade overlay color is black or white depending on the selected fade mode
+* fade status text in the HUD shows whether the current bounds are based on:
+
+  * full video duration
+  * or the loop segment
+
+This allows clips to fade cleanly within a custom loop window instead of only against the full media duration.
 
 ---
 
@@ -185,6 +255,8 @@ Saved data includes:
 * config version, name, export timestamp
 * layout mode
 * grid gap
+* panel order
+* active panel count
 * per video:
 
   * id
@@ -200,14 +272,23 @@ Saved data includes:
   * contrast
   * saturation
   * grayscale
+  * fade mode
+  * fade-in duration
+  * fade-out duration
 
 ### Version notes
 
-* current config version: `5`
+* current config version: `6`
 * `gridGap` is stored globally
+* `panelOrder` is stored globally
+* `activePanelCount` is stored globally
 * filter values are stored per video
+* fade values are stored per video
 * loading restores saved gap and syncs it back to the HUD
+* loading restores saved panel order
+* loading restores saved visible-panel state
 * loading restores all saved filter values
+* loading restores all saved fade values
 
 ### Local file limitation
 
@@ -219,12 +300,41 @@ If a source was loaded via the browser file picker, the config can remember that
 
 ```json
 {
-  "version": 5,
-  "name": "Wall Of Cats",
+  "version": 6,
+  "name": "Demo Wall",
   "layoutMode": "2x2",
   "gridGap": 14,
-  "exportedAt": "2026-03-28T10:41:37.367Z",
+  "panelOrder": [
+    "video2",
+    "video1",
+    "video4",
+    "video3"
+  ],
+  "activePanelCount": 4,
+  "exportedAt": "2026-03-28T16:42:43.291Z",
   "videos": [
+    {
+      "id": "video2",
+      "title": "Soft Landing",
+      "sourceMode": "url",
+      "sourceValue": "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+      "sourceFileName": "",
+      "loopStart": 0,
+      "loopEnd": null,
+      "volume": 0.25,
+      "playbackRate": 1,
+      "muted": false,
+      "panX": 61,
+      "panY": 47,
+      "zoom": 105,
+      "brightness": 96,
+      "contrast": 112,
+      "saturation": 106,
+      "grayscale": 8,
+      "fadeMode": "white",
+      "fadeIn": 0.5,
+      "fadeOut": 0.8
+    },
     {
       "id": "video1",
       "title": "Window Watch",
@@ -232,7 +342,7 @@ If a source was loaded via the browser file picker, the config can remember that
       "sourceValue": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
       "sourceFileName": "",
       "loopStart": 0,
-      "loopEnd": 6.5,
+      "loopEnd": null,
       "volume": 0.25,
       "playbackRate": 1,
       "muted": false,
@@ -242,45 +352,10 @@ If a source was loaded via the browser file picker, the config can remember that
       "brightness": 108,
       "contrast": 104,
       "saturation": 118,
-      "grayscale": 0
-    },
-    {
-      "id": "video2",
-      "title": "Soft Landing",
-      "sourceMode": "url",
-      "sourceValue": "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
-      "sourceFileName": "",
-      "loopStart": 3,
-      "loopEnd": 15.2,
-      "volume": 0.8,
-      "playbackRate": 1,
-      "muted": false,
-      "panX": 61,
-      "panY": 47,
-      "zoom": 105,
-      "brightness": 96,
-      "contrast": 112,
-      "saturation": 106,
-      "grayscale": 8
-    },
-    {
-      "id": "video3",
-      "title": "Quiet Patrol",
-      "sourceMode": "url",
-      "sourceValue": "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-      "sourceFileName": "",
-      "loopStart": 12,
-      "loopEnd": 24,
-      "volume": 0.5,
-      "playbackRate": 0.75,
-      "muted": false,
-      "panX": 38,
-      "panY": 63,
-      "zoom": 120,
-      "brightness": 102,
-      "contrast": 98,
-      "saturation": 92,
-      "grayscale": 18
+      "grayscale": 0,
+      "fadeMode": "black",
+      "fadeIn": 0.5,
+      "fadeOut": 1.25
     },
     {
       "id": "video4",
@@ -299,7 +374,32 @@ If a source was loaded via the browser file picker, the config can remember that
       "brightness": 115,
       "contrast": 121,
       "saturation": 128,
-      "grayscale": 0
+      "grayscale": 0,
+      "fadeMode": "black",
+      "fadeIn": 1,
+      "fadeOut": 1
+    },
+    {
+      "id": "video3",
+      "title": "Quiet Patrol",
+      "sourceMode": "url",
+      "sourceValue": "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+      "sourceFileName": "",
+      "loopStart": 12,
+      "loopEnd": 24,
+      "volume": 0.5,
+      "playbackRate": 0.75,
+      "muted": false,
+      "panX": 38,
+      "panY": 63,
+      "zoom": 120,
+      "brightness": 102,
+      "contrast": 98,
+      "saturation": 92,
+      "grayscale": 18,
+      "fadeMode": "none",
+      "fadeIn": 0,
+      "fadeOut": 0
     }
   ]
 }
@@ -316,9 +416,9 @@ If a source was loaded via the browser file picker, the config can remember that
 
 ## Responsive / Browser Notes
 
-On smaller screens, loop and pan fields stack vertically, filter controls flow naturally, the HUD stays scrollable, and the quick bar remains compact.
+On smaller screens, loop and pan fields stack vertically, filter controls flow naturally, fade controls stay readable, the HUD stays scrollable, and the quick bar remains compact.
 
-Best tested in modern Chromium-based browsers and Firefox. Browser differences may affect autoplay permissions, fullscreen handling, file URL behavior, codec support, filter rendering, and supported playback-rate range.
+Best tested in modern Chromium-based browsers and Firefox. Browser differences may affect autoplay permissions, fullscreen handling, file URL behavior, codec support, filter rendering, fade timing smoothness, and supported playback-rate range.
 
 ---
 
@@ -326,18 +426,21 @@ Best tested in modern Chromium-based browsers and Firefox. Browser differences m
 
 Common changes in `js/script.js`:
 
-* default video files, loop points, volume, speed, filters
+* default video files, loop points, volume, speed, filters, fades
 * speed presets via `SPEED_PRESETS`
 * default layout and grid gap
 * keyboard shortcuts
 * config structure
 * layout order via `LAYOUT_MODES`
+* drag-and-drop reorder behavior
+* fade overlay behavior and loop-transition handling
 
 Common changes in `css/style.css`:
 
 * HUD, overlay, quick bar, and help styling
 * solo mode sizing
 * filter panel appearance
+* fade overlay appearance
 * responsive breakpoints
 * layout grid definitions
 * active panel count overrides
@@ -349,11 +452,12 @@ Common changes in `css/style.css`:
 
 * Local files cannot be restored automatically from saved configs
 * Browser autoplay restrictions may require user interaction first
-* Synchronization is visual/manual, not frame-accurate
+* Synchronization is visual/manual, not frame-accurate across multiple independent videos
 * Supported playback-rate range depends on browser and codec support
 * Pan/zoom have no visible effect in solo mode, but remain preserved
 * Active panel count temporarily overrides the selected layout until cleared
 * Filter rendering depends on browser support, though modern Chromium-based browsers and Firefox generally work well
+* Fade smoothness at loop boundaries depends on browser seek/render timing and the exact transition strategy used in the current implementation
 
 ---
 
