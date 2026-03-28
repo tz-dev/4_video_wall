@@ -147,7 +147,7 @@ Each video block includes:
 * set loop start to current position
 * set loop end to current position
 * reset pan and zoom
-* icon-only mute toggle button
+* icon-only 🔊 mute toggle button
 * icon-only 🎨 filter button next to the mute button in the title row
 * collapsible filter panel per video
 * filter reset button in the filter panel header
@@ -160,7 +160,6 @@ Filter panel behavior:
 
 * each video has its own collapsible filter panel
 * the panel is opened via the 🎨 button in the title bar
-* the 🎨 button gets a subtle active state while the panel is open
 * filter values are applied per video and preserved in saved configs
 * the reset button in the panel header resets all four filter values to defaults
 
