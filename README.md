@@ -156,13 +156,6 @@ Each video block includes:
 * saturation slider (0–200%)
 * grayscale slider (0–100%)
 
-Filter panel behavior:
-
-* each video has its own collapsible filter panel
-* the panel is opened via the 🎨 button in the title bar
-* filter values are applied per video and preserved in saved configs
-* the reset button in the panel header resets all four filter values to defaults
-
 ---
 
 ## Solo Mode
