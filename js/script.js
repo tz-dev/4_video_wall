@@ -797,6 +797,17 @@ function applyVisiblePanelState() {
 function setActivePanelCount(n) {
   if (n < 1 || n > 4) return;
 
+  // 4 bedeutet niemals eigener "panel count mode",
+  // sondern immer normaler Vollzustand = alle Panels sichtbar.
+  if (n === 4) {
+    activePanelCount = null;
+    applyVisiblePanelState();
+    showActionIcon("◫");
+    setStatus("All panels visible.");
+    return;
+  }
+
+  // Gleiches N erneut = zurück auf alle sichtbar
   if (activePanelCount === n) {
     activePanelCount = null;
     applyVisiblePanelState();
@@ -1865,10 +1876,12 @@ function applyLoadedConfig(parsed, options = {}) {
     updatePanelOrderUI();
   }
 
-  activePanelCount =
+  const loadedPanelCount =
     parsed.activePanelCount === null || parsed.activePanelCount === undefined
       ? null
       : clamp(Number(parsed.activePanelCount), 1, 4);
+
+  activePanelCount = loadedPanelCount === 4 ? null : loadedPanelCount;
 
   applyVisiblePanelState();
   updateGlobalButtons();
