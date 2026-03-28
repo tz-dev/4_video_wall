@@ -4,7 +4,7 @@ A browser-based 4-video wall player with per-video loop controls, volume control
 
 ## Features
 
-- 4 simultaneous video panels
+- Up to 4 simultaneous video panels
 - Four layouts:
   - `4x1`
   - `2x2`
@@ -54,8 +54,11 @@ This project is intended for installations, visual walls, live performance setup
 ## Screenshots
 
 ![HUD Screenshot](img/screenshot_hud.png)  
+  
 ![Layout 1 Screenshot](img/screenshot_layout1.png)  
+  
 ![Layout 2 Screenshot](img/screenshot_layout2.png)  
+  
 ![Layout 3 Screenshot](img/screenshot_layout3.png)  
 
 ---
