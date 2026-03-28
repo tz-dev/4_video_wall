@@ -325,8 +325,6 @@ function getPlaybackSegment(cfg, video) {
   const start = Math.max(0, Number(cfg.loopStart || 0));
   const hasCustomLoopEnd = Number.isFinite(cfg.loopEnd) && cfg.loopEnd > start;
 
-  // Sobald ein valider Loop gesetzt ist, soll Fade sich an diesem Segment orientieren
-  // — auch dann, wenn das Video schon native/full-file looped.
   if (hasCustomLoopEnd) {
     const end = hasDuration ? clamp(cfg.loopEnd, 0, duration) : Number(cfg.loopEnd);
 
