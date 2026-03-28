@@ -3,6 +3,7 @@
   "name": "Demo Wall",
   "layoutMode": "2x2",
   "gridGap": 14,
+  "autoplay": false,
   "panelOrder": [
     "video2",
     "video1",
