@@ -1,6 +1,6 @@
 # 4 Video Wall
 
-A browser-based 4-video wall player for up to four simultaneous videos, with independent looping, per-video audio/speed/pan/zoom/filter/fade control, drag-and-drop panel reordering, solo mode, layout switching, fullscreen, keyboard shortcuts, JSON config save/load, and a live HUD.
+A browser-based 4-video wall player for up to four simultaneous videos, with independent looping, per-video audio offset/audio/speed/pan/zoom/filter/fade control, drag-and-drop panel reordering, solo mode, layout switching, fullscreen, keyboard shortcuts, JSON config save/load, and a live HUD.
 
 ## Features
 
@@ -11,6 +11,7 @@ A browser-based 4-video wall player for up to four simultaneous videos, with ind
   - title
   - source via URL or local file
   - volume, mute, play / pause
+  - audio offset (`-30s` to `+30s`)
   - playback speed (`0.25×–4×`) with presets
   - loop start / loop end
   - seek / current time
@@ -37,7 +38,7 @@ A browser-based 4-video wall player for up to four simultaneous videos, with ind
 - Help overlay
 - Toast / action overlay feedback
 - Save / load JSON configs
-- Config persistence for layout gap, panel order, active panel count, playback, pan/zoom, filters, fades, and per-video settings
+- Config persistence for layout gap, panel order, active panel count, playback, audio offset, pan/zoom, filters, fades, and per-video settings
 - Local-file aware restore behavior
 
 ---
@@ -131,6 +132,7 @@ Each video block includes:
 * title and source loading (URL or local file)
 * source status
 * volume
+* audio offset
 * playback speed with presets
 * loop start / end
 * seek bar and time readout
@@ -198,7 +200,7 @@ Solo mode shows one selected video centered with `object-fit: contain`.
 `Alt` + `1`-`4` limits the wall to the first `1–4` visible panels.
 
 * pressing the same shortcut again restores all four
-* hidden panels keep their playback state, loop points, volume, speed, pan, zoom, filters, and fade settings
+* hidden panels keep their playback state, loop points, volume, speed, audio offset, pan, zoom, filters, and fade settings
 * visible panels expand to fill the available width
 * the normal layout is temporarily overridden while panel count mode is active
 * because the feature always shows the **first N panels in current order**, drag-and-drop reordering directly affects which panels are shown
@@ -207,9 +209,16 @@ Solo mode shows one selected video centered with `object-fit: contain`.
 
 * videos do **not** start muted by default
 * each video uses its configured volume and playback rate
-* full-length playback can use normal video looping behavior when no custom loop end is defined
-* custom looping is handled manually through `loopStart` and `loopEnd`
-* reaching `loopEnd` jumps playback back to `loopStart`
+* audio playback is handled separately from the visible video element so audio offset can be applied independently
+* `audioOffset` shifts audio timing relative to the visible video:
+
+  * positive values delay audio
+  * negative values advance audio
+  * `0` keeps audio aligned to the visible video timeline
+* audio offset is applied during normal playback, seeking, pause/resume, manual loop transitions, and source reloads
+* full-length playback can use the full media duration when no custom loop end is defined
+* custom looping is handled through `loopStart` and `loopEnd`
+* reaching `loopEnd` returns playback to `loopStart` and re-synchronizes the audio timeline to the active loop segment
 * playback rate is re-applied after source changes to avoid browser reset behavior
 * autoplay still depends on browser interaction policies and is unlocked on first pointer/key interaction
 
@@ -264,6 +273,7 @@ Saved data includes:
   * source mode / value / file name
   * loop start / loop end
   * volume
+  * audio offset
   * playback rate
   * muted state
   * pan X / pan Y
@@ -278,15 +288,17 @@ Saved data includes:
 
 ### Version notes
 
-* current config version: `6`
+* current config version: `7`
 * `gridGap` is stored globally
 * `panelOrder` is stored globally
 * `activePanelCount` is stored globally
+* audio offset is stored per video
 * filter values are stored per video
 * fade values are stored per video
 * loading restores saved gap and syncs it back to the HUD
 * loading restores saved panel order
 * loading restores saved visible-panel state
+* loading restores all saved audio offset values
 * loading restores all saved filter values
 * loading restores all saved fade values
 
@@ -307,7 +319,7 @@ If a source was loaded via the browser file picker, the config can remember that
 
 On smaller screens, loop and pan fields stack vertically, filter controls flow naturally, fade controls stay readable, the HUD stays scrollable, and the quick bar remains compact.
 
-Best tested in modern Chromium-based browsers and Firefox. Browser differences may affect autoplay permissions, fullscreen handling, file URL behavior, codec support, filter rendering, fade timing smoothness, and supported playback-rate range.
+Best tested in modern Chromium-based browsers and Firefox. Browser differences may affect autoplay permissions, fullscreen handling, file URL behavior, codec support, filter rendering, fade timing smoothness, audio-offset resync behavior, and supported playback-rate range.
 
 ---
 
@@ -315,7 +327,7 @@ Best tested in modern Chromium-based browsers and Firefox. Browser differences m
 
 Common changes in `js/script.js`:
 
-* default video files, loop points, volume, speed, filters, fades
+* default video files, loop points, volume, audio offset, speed, filters, fades
 * speed presets via `SPEED_PRESETS`
 * default layout and grid gap
 * keyboard shortcuts
@@ -323,6 +335,7 @@ Common changes in `js/script.js`:
 * layout order via `LAYOUT_MODES`
 * drag-and-drop reorder behavior
 * fade overlay behavior and loop-transition handling
+* audio/video sync handling for offset playback
 
 Common changes in `css/style.css`:
 
@@ -342,6 +355,7 @@ Common changes in `css/style.css`:
 * Local files cannot be restored automatically from saved configs
 * Browser autoplay restrictions may require user interaction first
 * Synchronization is visual/manual, not frame-accurate across multiple independent videos
+* Audio offset is designed for practical browser playback, not frame-accurate editorial sync
 * Supported playback-rate range depends on browser and codec support
 * Pan/zoom have no visible effect in solo mode, but remain preserved
 * Active panel count temporarily overrides the selected layout until cleared
