@@ -92,8 +92,9 @@ Designed for installations, visual walls, live performance setups, moodboards, e
 
 ## Usage
 
-For local files, serve the project through a local web server. Opening `index.html` via `file:///` will usually block local file loading due to browser security restrictions.
-If you only use URLs, opening `index.html` directly is enough.
+* For local files, serve the project through a local web server. Opening `index.html` via `file:///` will usually block local file loading due to browser security restrictions.
+* If you only use URLs, opening `index.html` directly is enough.
+* You can also download the [Desktop app version (Windows)](https://drive.google.com/drive/folders/1R1BZmtSfM-5gCfLMulFZyMyiz9kh-R2E?usp=sharing) from google drive
 
 ### Quick start with Python
 
