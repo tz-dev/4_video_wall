@@ -3,7 +3,7 @@
 
 [Desktop app version (Windows)](https://drive.google.com/drive/folders/1R1BZmtSfM-5gCfLMulFZyMyiz9kh-R2E?usp=sharing)
 
-A browser-based 4-video wall player for up to four simultaneous videos, with independent looping, per-video audio, speed, pan, zoom, filters, fade-to-video and optional fade-to-audio, drag-and-drop panel reordering, solo mode, layout switching, splash screen, fullscreen, keyboard shortcuts, JSON config save/load, editable title/label CSS, and a live HUD.
+A browser-based 4-video wall player for up to four simultaneous videos, with independent looping, per-video audio, speed, pan, zoom, filters, fade-to-video and optional fade-to-audio, drag-and-drop panel reordering, solo mode, layout switching, fullscreen, keyboard shortcuts, JSON config save/load, editable title/label CSS, and a live HUD.
 
 ## Features
 
