@@ -157,8 +157,7 @@ let activePanelCount = null;
 let dragState = null;
 let reorderDragId = null;
 let cursorTimer = null;
-let lastFullscreenState = !!document.fullscreenElement;
-
+let lastFullscreenState = isAnyFullscreenActive();
 const CURSOR_HIDE_DELAY = 3000;
 
 function clamp(value, min, max) {
@@ -180,7 +179,8 @@ function formatDurationInfo(current, duration) {
 }
 
 function setDocumentTitle(name) {
-  currentConfigName = (name || "4 Video Wall").trim();
+  const normalized = String(name ?? "").trim();
+  currentConfigName = normalized || "4 Video Wall";
   document.title = currentConfigName;
 }
 
@@ -947,6 +947,24 @@ function setActivePanelCount(n) {
   setStatus(`Showing first ${n} panel${n > 1 ? "s" : ""} in the current order.`);
 }
 
+function isBrowserLikeFullscreen() {
+  const threshold = 4;
+
+  const widthFits =
+    Math.abs(window.innerWidth - screen.availWidth) <= threshold ||
+    Math.abs(window.innerWidth - screen.width) <= threshold;
+
+  const heightFits =
+    Math.abs(window.innerHeight - screen.availHeight) <= threshold ||
+    Math.abs(window.innerHeight - screen.height) <= threshold;
+
+  return widthFits && heightFits;
+}
+
+function isAnyFullscreenActive() {
+  return !!document.fullscreenElement || isBrowserLikeFullscreen();
+}
+
 /* ────────────────────────────────────────────────────────────────────────── */
 /* buttons */
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -954,11 +972,17 @@ function setActivePanelCount(n) {
 function updateGlobalButtons() {
   const muted = areAllMuted();
   const paused = areAllPaused();
-  const fullscreenActive = !!document.fullscreenElement;
+  const apiFullscreen = !!document.fullscreenElement;
+  const browserFullscreen = isBrowserLikeFullscreen();
+  const fullscreenActive = apiFullscreen || browserFullscreen;
 
   toggleMuteAllBtn.textContent = muted ? "Unmute All" : "Mute All";
   togglePauseAllBtn.textContent = paused ? "Play All" : "Pause All";
-  fullscreenBtn.textContent = fullscreenActive ? "Exit Fullscreen" : "Fullscreen";
+  fullscreenBtn.textContent = apiFullscreen
+    ? "Exit Fullscreen"
+    : browserFullscreen
+      ? "F11 Fullscreen Active"
+      : "Fullscreen";
 
   quickPauseBtn.textContent = paused ? "▶" : "⏸";
   quickMuteBtn.textContent = muted ? "🔇" : "🔊";
@@ -1021,6 +1045,11 @@ function createLayoutUI() {
   wrap.innerHTML = `
     <h3>Viewport</h3>
 
+    <div class="row">
+      <label>Wall Title</label>
+      <input type="text" value="${currentConfigName}" data-role="configTitle">
+    </div>
+
     <div class="source-row">
       <label>Layout</label>
       <select data-role="layoutMode">
@@ -1070,6 +1099,15 @@ function createLayoutUI() {
   layoutNextBtn = wrap.querySelector('[data-action="toggleLayout"]');
   panelOrderBar = wrap.querySelector('[data-role="panelOrderBar"]');
   const autoplayInput = wrap.querySelector('[data-role="autoplay"]');
+  const configTitleInput = wrap.querySelector('[data-role="configTitle"]');
+
+  configTitleInput.addEventListener("input", () => {
+    setDocumentTitle(configTitleInput.value);
+  });
+
+  configTitleInput.addEventListener("change", () => {
+    setStatus(`Config title set to: ${currentConfigName}`);
+  });
 
   layoutSelect.value = currentLayoutMode;
   autoplayInput.checked = autoplayEnabled;
@@ -1924,6 +1962,8 @@ function applyLoadedConfig(parsed, options = {}) {
   }
 
   setDocumentTitle(parsed.name || options.fallbackName || "4 Video Wall");
+  const configTitleInput = document.querySelector('[data-role="configTitle"]');
+  if (configTitleInput) configTitleInput.value = currentConfigName;
   applyLayoutMode(parsed.layoutMode || "4x1");
   autoplayEnabled = parsed.autoplay !== undefined ? Boolean(parsed.autoplay) : true;
   const autoplayInput = document.querySelector('[data-role="autoplay"]');
@@ -2169,18 +2209,24 @@ function soloVideo(index) {
 
 async function toggleFullscreen() {
   try {
-    if (!document.fullscreenElement) {
-      await document.documentElement.requestFullscreen();
-    } else {
+    if (document.fullscreenElement) {
       await document.exitFullscreen();
+      return;
     }
+
+    if (isBrowserLikeFullscreen()) {
+      setStatus("Browser fullscreen (F11) is active. Exit it with F11.");
+      return;
+    }
+
+    await document.documentElement.requestFullscreen();
   } catch (error) {
     setStatus(`Fullscreen failed: ${error.message}`);
   }
 }
 
 function handleFullscreenChange() {
-  const isFullscreen = !!document.fullscreenElement;
+  const isFullscreen = isAnyFullscreenActive();
 
   if (isFullscreen !== lastFullscreenState) {
     showActionIcon(isFullscreen ? "⛶" : "🡼");
@@ -2261,6 +2307,7 @@ document.addEventListener("mousemove", () => {
 });
 
 document.addEventListener("fullscreenchange", handleFullscreenChange);
+window.addEventListener("resize", handleFullscreenChange);
 
 document.addEventListener("keydown", async (event) => {
   const activeTag = document.activeElement?.tagName;
@@ -2344,6 +2391,7 @@ document.addEventListener("keydown", async (event) => {
 applyLayoutMode("4x1");
 setHudVisible(true);
 updateGlobalButtons();
+setDocumentTitle(currentConfigName);
 setStatus(introMessage);
 applyConfigOrder();
 
