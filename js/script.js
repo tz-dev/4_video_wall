@@ -370,7 +370,7 @@ function createSplashOverlay() {
   const wrap = document.createElement("div");
   wrap.className = "splash-overlay";
   wrap.setAttribute("aria-hidden", "false");
-  wrap.innerHTML = `<img src="img/slpashscreen.png" alt="Splashscreen">`;
+  wrap.innerHTML = `<img src="img/splashscreen.png" alt="Splashscreen">`;
 
   const dismiss = () => {
     if (splashDismissed) return;
