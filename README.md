@@ -1,4 +1,5 @@
-# 4 Video Wall
+
+![HUD Screenshot](img/splashscreen.png)
 
 [Desktop app version (Windows)](https://drive.google.com/drive/folders/1R1BZmtSfM-5gCfLMulFZyMyiz9kh-R2E?usp=sharing)
 
