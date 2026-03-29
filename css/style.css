@@ -240,6 +240,16 @@ body.show-labels .label {
   opacity: 1;
 }
 
+
+body.desktop-app #fullscreenBtn,
+body.desktop-app #quickFullscreenBtn {
+  display: none;
+}
+
+.danger-button {
+  border-color: rgba(255, 120, 120, 0.45);
+}
+
 /* ── HUD ────────────────────────────────────────────────────────── */
 
 .hud {
