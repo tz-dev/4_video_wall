@@ -1,6 +1,8 @@
 # 4 Video Wall
 
-A browser-based 4-video wall player for up to four simultaneous videos, with independent looping, per-video audio offset/audio/speed/pan/zoom/filter/fade control, drag-and-drop panel reordering, solo mode, layout switching, fullscreen, keyboard shortcuts, JSON config save/load, and a live HUD.
+[Desktop app version (Windows)](https://drive.google.com/drive/folders/1R1BZmtSfM-5gCfLMulFZyMyiz9kh-R2E?usp=sharing)
+
+A browser-based 4-video wall player for up to four simultaneous videos, with independent looping, per-video audio, speed, pan, zoom, filter, and fade control, drag-and-drop panel reordering, solo mode, layout switching, fullscreen, keyboard shortcuts, JSON config save/load, and a live HUD.
 
 ## Features
 
