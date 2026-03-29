@@ -226,20 +226,20 @@ video {
   position: absolute;
   top: 8px;
   left: 8px;
-  padding: 4px 8px;
-  font-size: 12px;
-  background: rgba(0, 0, 0, 0.55);
-  border-radius: 6px;
+  max-width: calc(100% - 16px);
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.2s ease;
   z-index: 3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-body.show-labels .label {
+body.show-labels .label,
+.video-cell.force-show-label .label {
   opacity: 1;
 }
-
 
 body.desktop-app #fullscreenBtn,
 body.desktop-app #quickFullscreenBtn {
@@ -248,6 +248,7 @@ body.desktop-app #quickFullscreenBtn {
 
 .danger-button {
   border-color: rgba(255, 120, 120, 0.45);
+  color: #ffb8b8;
 }
 
 /* ── HUD ────────────────────────────────────────────────────────── */
@@ -256,7 +257,7 @@ body.desktop-app #quickFullscreenBtn {
   position: fixed;
   right: 12px;
   bottom: 12px;
-  width: min(720px, calc(100vw - 24px));
+  width: min(760px, calc(100vw - 24px));
   max-height: calc(100vh - 24px);
   overflow: auto;
   background: rgba(15, 15, 15, 0.92);
@@ -308,6 +309,15 @@ body.desktop-app #quickFullscreenBtn {
   margin-bottom: 12px;
 }
 
+.hud-note ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.hud-note li + li {
+  margin-top: 4px;
+}
+
 .global-status {
   padding: 8px 10px;
   border-radius: 8px;
@@ -339,7 +349,7 @@ body.desktop-app #quickFullscreenBtn {
 }
 
 .row-title {
-  grid-template-columns: 90px 1fr auto;
+  grid-template-columns: 90px 1fr auto auto;
 }
 
 .row label,
@@ -683,6 +693,14 @@ select:disabled {
   min-width: 52px;
 }
 
+.inline-file-button {
+  display: inline-flex;
+}
+
+.inline-file-button span {
+  white-space: nowrap;
+}
+
 code {
   font-family: Consolas, Monaco, monospace;
 }
@@ -756,7 +774,15 @@ code {
     grid-template-columns: 1fr;
   }
 
+  .row-title {
+    grid-template-columns: 1fr;
+  }
+
   .row output {
     text-align: left;
+  }
+
+  .icon-button-wrap {
+    justify-content: flex-start;
   }
 }

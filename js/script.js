@@ -21,7 +21,9 @@ const configs = [
     grayscale: 0,
     fadeMode: "none",   // "none" | "black" | "white"
     fadeIn: 0.0,
-    fadeOut: 0.0
+    fadeOut: 0.0,
+    fadeAudio: false,
+    showLabel: false
   },
   {
     id: "video2",
@@ -45,7 +47,9 @@ const configs = [
     grayscale: 0,
     fadeMode: "none",
     fadeIn: 0.0,
-    fadeOut: 0.0
+    fadeOut: 0.0,
+    fadeAudio: false,
+    showLabel: false
   },
   {
     id: "video3",
@@ -69,7 +73,9 @@ const configs = [
     grayscale: 0,
     fadeMode: "none",
     fadeIn: 0.0,
-    fadeOut: 0.0
+    fadeOut: 0.0,
+    fadeAudio: false,
+    showLabel: false
   },
   {
     id: "video4",
@@ -93,7 +99,9 @@ const configs = [
     grayscale: 0,
     fadeMode: "none",
     fadeIn: 0.0,
-    fadeOut: 0.0
+    fadeOut: 0.0,
+    fadeAudio: false,
+    showLabel: false
   }
 ];
 
@@ -165,6 +173,43 @@ let reorderDragId = null;
 let cursorTimer = null;
 let lastFullscreenState = isAnyFullscreenActive();
 let appInfo = { desktopMode: false, defaultFullscreen: false };
+let showWallTitle = false;
+let splashDismissed = false;
+let wallTitleEl = null;
+let splashOverlayEl = null;
+let dynamicTextStyleEl = null;
+
+let wallTitleCss = `
+font-family: sans-serif;
+font-size: 42px;
+font-weight: 700;
+color: #fff;
+letter-spacing: 0.02em;
+text-align: center;
+-webkit-text-stroke: 2px #000;
+text-shadow:
+  0 0 1px #000,
+  0 1px 0 #000,
+  1px 0 0 #000,
+  0 -1px 0 #000,
+  -1px 0 0 #000;
+`;
+
+let clipLabelCss = `
+font-family: sans-serif;
+font-size: 20px;
+font-weight: 700;
+color: #fff;
+letter-spacing: 0.02em;
+-webkit-text-stroke: 1.5px #000;
+text-shadow:
+  0 0 1px #000,
+  0 1px 0 #000,
+  1px 0 0 #000,
+  0 -1px 0 #000,
+  -1px 0 0 #000;
+`;
+
 const CURSOR_HIDE_DELAY = 3000;
 
 function clamp(value, min, max) {
@@ -221,10 +266,136 @@ async function exitApplication() {
   setStatus("Desktop bridge not available.");
 }
 
+function ensureWallTitleElement() {
+  if (wallTitleEl) return wallTitleEl;
+
+  wallTitleEl = document.createElement("div");
+  wallTitleEl.id = "wallTitleOverlay";
+  wallTitleEl.className = "wall-title-overlay hidden";
+  document.body.appendChild(wallTitleEl);
+  return wallTitleEl;
+}
+
+function updateWallTitleOverlay() {
+  const el = ensureWallTitleElement();
+  el.textContent = currentConfigName || "4 Video Wall";
+  el.classList.toggle("hidden", !showWallTitle);
+}
+
+function ensureDynamicTextStyle() {
+  if (dynamicTextStyleEl) return dynamicTextStyleEl;
+
+  dynamicTextStyleEl = document.createElement("style");
+  dynamicTextStyleEl.id = "__dynamicTextStyle";
+  document.head.appendChild(dynamicTextStyleEl);
+  return dynamicTextStyleEl;
+}
+
+function applyDynamicTextStyles() {
+  const styleEl = ensureDynamicTextStyle();
+  styleEl.textContent = `
+    .wall-title-overlay {
+      position: fixed;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9998;
+      pointer-events: none;
+      max-width: 90vw;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      ${wallTitleCss}
+    }
+
+    .wall-title-overlay.hidden {
+      display: none;
+    }
+
+    .video-cell .label {
+      ${clipLabelCss}
+    }
+
+    .video-cell.force-show-label .label {
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
+
+    .splash-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .splash-overlay.hidden {
+      display: none;
+    }
+
+    .splash-overlay img {
+      max-width: 100vw;
+      max-height: 100vh;
+      object-fit: contain;
+      display: block;
+    }
+
+    .font-css-wrap {
+      margin-top: 10px;
+      border-top: 1px solid rgba(255,255,255,0.12);
+      padding-top: 10px;
+    }
+
+    .font-css-wrap details {
+      margin-top: 8px;
+    }
+
+    .font-css-wrap textarea {
+      width: 100%;
+      min-height: 130px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+  `;
+}
+
+function createSplashOverlay() {
+  if (splashOverlayEl) return splashOverlayEl;
+
+  const wrap = document.createElement("div");
+  wrap.className = "splash-overlay";
+  wrap.setAttribute("aria-hidden", "false");
+  wrap.innerHTML = `<img src="img/slpashscreen.png" alt="Splashscreen">`;
+
+  const dismiss = () => {
+    if (splashDismissed) return;
+    splashDismissed = true;
+    wrap.classList.add("hidden");
+    wrap.setAttribute("aria-hidden", "true");
+    unlockPlayback();
+  };
+
+  wrap.addEventListener("click", dismiss);
+  document.addEventListener("keydown", dismiss, { once: true });
+
+  splashOverlayEl = wrap;
+  document.body.appendChild(wrap);
+
+  setTimeout(() => dismiss(), 5000);
+
+  return wrap;
+}
+
 function setDocumentTitle(name) {
   const normalized = String(name ?? "").trim();
   currentConfigName = normalized || "4 Video Wall";
   document.title = currentConfigName;
+  updateWallTitleOverlay();
 }
 
 function setStatus(message) {
@@ -305,10 +476,19 @@ function getAudioByConfig(cfg) {
   return ensureAudioElement(cfg);
 }
 
+function applyClipLabelVisibility(cfg) {
+  const cell = getCellByConfig(cfg);
+  if (!cell) return;
+  cell.classList.toggle("force-show-label", !!cfg.showLabel);
+}
+
 function refreshAllLabels() {
   configs.forEach((cfg) => {
     const video = getVideoByConfig(cfg);
-    if (video) updateLabel(cfg, video);
+    if (video) {
+      updateLabel(cfg, video);
+      applyClipLabelVisibility(cfg);
+    }
   });
 }
 
@@ -451,6 +631,7 @@ function normalizeFadeTimes(cfg, video, changedKey = null) {
     cfg.ui.fadeModeInput.value = cfg.fadeMode;
     cfg.ui.fadeInInput.value = cfg.fadeIn;
     cfg.ui.fadeOutInput.value = cfg.fadeOut;
+    if (cfg.ui.fadeAudioInput) cfg.ui.fadeAudioInput.checked = !!cfg.fadeAudio;
     cfg.ui.outFadeIn.textContent = `${cfg.fadeIn.toFixed(2)}s`;
     cfg.ui.outFadeOut.textContent = `${cfg.fadeOut.toFixed(2)}s`;
 
@@ -558,6 +739,26 @@ function setFadeOverlayOpacity(cfg, opacity) {
   overlay.style.opacity = String(clamp(opacity, 0, 1));
 }
 
+function getAudioFadeGain(cfg, video) {
+  if (!cfg.fadeAudio || cfg.fadeMode === "none") return 1;
+
+  if (cfg._fadeTransition) {
+    const opacity = getCurrentTransitionOpacity(cfg);
+    return clamp(1 - (opacity ?? 0), 0, 1);
+  }
+
+  const opacity = getPassiveFadeOpacity(cfg, video);
+  return clamp(1 - opacity, 0, 1);
+}
+
+function updateAudioFade(cfg, video) {
+  const audio = getAudioByConfig(cfg);
+  const gain = getAudioFadeGain(cfg, video);
+  const baseVolume = clamp(Number(cfg.volume ?? 1), 0, 1);
+
+  audio.volume = cfg._audioMuted ? 0 : clamp(baseVolume * gain, 0, 1);
+}
+
 function updateFadeOverlay(cfg, video) {
   const overlay = ensureFadeOverlay(cfg);
   if (!overlay) return;
@@ -565,6 +766,7 @@ function updateFadeOverlay(cfg, video) {
   if (cfg.fadeMode === "none") {
     overlay.style.transition = "none";
     overlay.style.opacity = "0";
+    updateAudioFade(cfg, video);
     return;
   }
 
@@ -573,10 +775,12 @@ function updateFadeOverlay(cfg, video) {
 
   if (cfg._fadeTransition) {
     setFadeOverlayOpacity(cfg, getCurrentTransitionOpacity(cfg));
+    updateAudioFade(cfg, video);
     return;
   }
 
   setFadeOverlayOpacity(cfg, getPassiveFadeOpacity(cfg, video));
+  updateAudioFade(cfg, video);
 }
 
 function startManualLoopTransition(cfg, video) {
@@ -666,8 +870,8 @@ function hardSyncAudioToVideo(cfg, video) {
   } catch {}
 
   audio.playbackRate = video.playbackRate;
-  audio.volume = cfg.volume;
   audio.muted = !!cfg._audioMuted;
+  updateAudioFade(cfg, video);
 }
 
 function restartLoopCycle(cfg, video) {
@@ -722,13 +926,11 @@ function syncAudioToVideo(cfg, video, force = false) {
     audio.playbackRate = video.playbackRate;
   }
 
-  if (audio.volume !== cfg.volume) {
-    audio.volume = cfg.volume;
-  }
-
   if (audio.muted !== !!cfg._audioMuted) {
     audio.muted = !!cfg._audioMuted;
   }
+
+  updateAudioFade(cfg, video);
 
   if (!video.paused && audio.paused && !audio.ended) {
     audio.play().catch(() => {});
@@ -1248,6 +1450,11 @@ function createLayoutUI() {
       <input type="text" value="${currentConfigName}" data-role="configTitle">
     </div>
 
+    <div class="row">
+      <label>Show Title</label>
+      <input type="checkbox" data-role="showWallTitle" style="width: 20px">
+    </div>
+
     <div class="source-row">
       <label>Layout</label>
       <select data-role="layoutMode">
@@ -1290,6 +1497,22 @@ function createLayoutUI() {
     <div class="speed-presets">
       ${SPEED_PRESETS.map(s => `<button type="button" class="speed-preset-btn" data-speed="${s}">${s}×</button>`).join("")}
     </div>
+
+    <div class="font-css-wrap">
+      <details>
+        <summary>Font / CSS Options</summary>
+
+        <div class="row" style="margin-top:10px">
+          <label>Title CSS</label>
+          <textarea data-role="wallTitleCss"></textarea>
+        </div>
+
+        <div class="row">
+          <label>Label CSS</label>
+          <textarea data-role="clipLabelCss"></textarea>
+        </div>
+      </details>
+    </div>
   `;
 
   layoutSelect = wrap.querySelector('[data-role="layoutMode"]');
@@ -1298,6 +1521,9 @@ function createLayoutUI() {
   panelOrderBar = wrap.querySelector('[data-role="panelOrderBar"]');
   const autoplayInput = wrap.querySelector('[data-role="autoplay"]');
   const configTitleInput = wrap.querySelector('[data-role="configTitle"]');
+  const showWallTitleInput = wrap.querySelector('[data-role="showWallTitle"]');
+  const wallTitleCssInput = wrap.querySelector('[data-role="wallTitleCss"]');
+  const clipLabelCssInput = wrap.querySelector('[data-role="clipLabelCss"]');
 
   configTitleInput.addEventListener("input", () => {
     setDocumentTitle(configTitleInput.value);
@@ -1309,6 +1535,9 @@ function createLayoutUI() {
 
   layoutSelect.value = currentLayoutMode;
   autoplayInput.checked = autoplayEnabled;
+  showWallTitleInput.checked = showWallTitle;
+  wallTitleCssInput.value = wallTitleCss.trim();
+  clipLabelCssInput.value = clipLabelCss.trim();
 
   layoutSelect.addEventListener("change", () => {
     if (activePanelCount !== null && activePanelCount < 4) {
@@ -1335,6 +1564,22 @@ function createLayoutUI() {
 
     setStatus(`Autoplay ${autoplayEnabled ? "enabled" : "disabled"}.`);
     updateGlobalButtons();
+  });
+
+  showWallTitleInput.addEventListener("change", () => {
+    showWallTitle = showWallTitleInput.checked;
+    updateWallTitleOverlay();
+    setStatus(`Wall title ${showWallTitle ? "enabled" : "disabled"}.`);
+  });
+
+  wallTitleCssInput.addEventListener("input", () => {
+    wallTitleCss = wallTitleCssInput.value;
+    applyDynamicTextStyles();
+  });
+
+  clipLabelCssInput.addEventListener("input", () => {
+    clipLabelCss = clipLabelCssInput.value;
+    applyDynamicTextStyles();
   });
 
   layoutNextBtn.addEventListener("click", toggleLayoutMode);
@@ -1463,6 +1708,12 @@ function createControlUI(cfg) {
     <div class="row row-title">
       <label>Title</label>
       <input type="text" value="${cfg.title}" data-role="titleInput">
+
+      <label style="display:flex;align-items:center;gap:.4rem;white-space:nowrap;">
+        <input type="checkbox" data-role="showLabel" ${cfg.showLabel ? "checked" : ""}>
+        Label
+      </label>
+
       <div class="icon-button-wrap">
         <button type="button" class="icon-button" data-action="toggleMute" title="Mute / Unmute" aria-label="Mute / Unmute">🔊</button>
         <button type="button" class="icon-button" data-action="toggleFilters" title="Filters" aria-label="Filters" aria-expanded="false">🎨</button>
@@ -1560,6 +1811,11 @@ function createControlUI(cfg) {
       </select>
     </div>
 
+    <div class="row">
+      <label>Fade Audio</label>
+      <input type="checkbox" data-role="fadeAudio" style="width:20px" ${cfg.fadeAudio ? "checked" : ""}>
+    </div>
+
     <div class="fade-row">
       <div class="fade-field">
         <label>Fade In</label>
@@ -1621,6 +1877,8 @@ function createControlUI(cfg) {
   const fadeModeInput = wrap.querySelector('[data-role="fadeMode"]');
   const fadeInInput = wrap.querySelector('[data-role="fadeIn"]');
   const fadeOutInput = wrap.querySelector('[data-role="fadeOut"]');
+  const fadeAudioInput = wrap.querySelector('[data-role="fadeAudio"]');
+  const showLabelInput = wrap.querySelector('[data-role="showLabel"]');
   const fadeStatus = wrap.querySelector('[data-role="fadeStatus"]');
 
   const outVolume = wrap.querySelector('[data-out="volume"]');
@@ -1689,6 +1947,12 @@ function createControlUI(cfg) {
     updatePanelOrderUI();
   });
 
+  showLabelInput.addEventListener("change", () => {
+    cfg.showLabel = showLabelInput.checked;
+    applyClipLabelVisibility(cfg);
+    setStatus(`${cfg.title}: label ${cfg.showLabel ? "enabled" : "disabled"}.`);
+  });
+
   wrap.querySelector('[data-action="loadFile"]').addEventListener("click", () => {
     const file = fileInput.files?.[0];
     if (!file) {
@@ -1726,7 +1990,7 @@ function createControlUI(cfg) {
 
   volumeInput.addEventListener("input", () => {
     cfg.volume = Number(volumeInput.value);
-    audio.volume = cfg.volume;
+    updateAudioFade(cfg, video);
     outVolume.textContent = cfg.volume.toFixed(2);
   });
 
@@ -1838,6 +2102,12 @@ function createControlUI(cfg) {
     cfg.fadeMode = fadeModeInput.value;
     applyFadeAppearance(cfg);
     updateFadeOverlay(cfg, video);
+  });
+
+  fadeAudioInput.addEventListener("change", () => {
+    cfg.fadeAudio = fadeAudioInput.checked;
+    updateAudioFade(cfg, video);
+    setStatus(`${cfg.title}: audio fade ${cfg.fadeAudio ? "enabled" : "disabled"}.`);
   });
 
   fadeInInput.addEventListener("input", () => {
@@ -1985,7 +2255,6 @@ function createControlUI(cfg) {
       video.duration || (Number.isFinite(cfg.loopStart) ? cfg.loopStart : 0)
     );
 
-    audio.volume = cfg.volume;
     audio.muted = cfg._audioMuted;
     audio.playbackRate = cfg.playbackRate;
     syncAudioToVideo(cfg, video, true);
@@ -2000,6 +2269,7 @@ function createControlUI(cfg) {
 
   video.addEventListener("timeupdate", () => {
     syncAudioToVideo(cfg, video, false);
+    updateAudioFade(cfg, video);
 
     if (Number.isFinite(video.duration)) {
       seekInput.max = video.duration;
@@ -2116,7 +2386,10 @@ function createControlUI(cfg) {
     stopFadeAnimationLoop(cfg);
   });
 
-  audio.addEventListener("volumechange", refreshMuteState);
+  audio.addEventListener("volumechange", () => {
+    updateLabel(cfg, video);
+    updateGlobalButtons();
+  });
 
   audio.addEventListener("ended", () => {
     if (video.paused) return;
@@ -2151,6 +2424,8 @@ function createControlUI(cfg) {
     fadeModeInput,
     fadeInInput,
     fadeOutInput,
+    fadeAudioInput,
+    showLabelInput,
     fadeStatus,
     outSpeed,
     outAudioOffset,
@@ -2177,13 +2452,14 @@ function createControlUI(cfg) {
   video.muted = true;
   video.playbackRate = cfg.playbackRate;
 
-  audio.volume = cfg.volume;
   audio.playbackRate = cfg.playbackRate;
   audio.muted = cfg._audioMuted;
 
   applyVideoPosition(cfg, video);
   applyVideoFilter(cfg, video);
   applyFadeAppearance(cfg);
+  applyClipLabelVisibility(cfg);
+  updateAudioFade(cfg, video);
 
   refreshMuteState();
   refreshPlayPauseButton();
@@ -2198,7 +2474,7 @@ function createControlUI(cfg) {
 
 function getSerializableConfig() {
   return {
-    version: 7,
+    version: 8,
     name: currentConfigName,
     layoutMode: currentLayoutMode,
     gridGap: currentGridGap,
@@ -2206,6 +2482,9 @@ function getSerializableConfig() {
     activePanelCount,
     exportedAt: new Date().toISOString(),
     autoplay: autoplayEnabled,
+    showWallTitle,
+    wallTitleCss,
+    clipLabelCss,
     videos: configs.map((cfg) => ({
       id: cfg.id,
       title: cfg.title,
@@ -2227,7 +2506,9 @@ function getSerializableConfig() {
       grayscale: cfg.grayscale,
       fadeMode: cfg.fadeMode,
       fadeIn: cfg.fadeIn,
-      fadeOut: cfg.fadeOut
+      fadeOut: cfg.fadeOut,
+      fadeAudio: !!cfg.fadeAudio,
+      showLabel: !!cfg.showLabel
     }))
   };
 }
@@ -2256,6 +2537,27 @@ function applyLoadedConfig(parsed, options = {}) {
   autoplayEnabled = parsed.autoplay !== undefined ? Boolean(parsed.autoplay) : true;
   const autoplayInput = document.querySelector('[data-role="autoplay"]');
   if (autoplayInput) autoplayInput.checked = autoplayEnabled;
+
+  showWallTitle = Boolean(parsed.showWallTitle);
+  wallTitleCss = typeof parsed.wallTitleCss === "string" && parsed.wallTitleCss.trim()
+    ? parsed.wallTitleCss
+    : wallTitleCss;
+
+  clipLabelCss = typeof parsed.clipLabelCss === "string" && parsed.clipLabelCss.trim()
+    ? parsed.clipLabelCss
+    : clipLabelCss;
+
+  applyDynamicTextStyles();
+  updateWallTitleOverlay();
+
+  const showWallTitleInput = document.querySelector('[data-role="showWallTitle"]');
+  if (showWallTitleInput) showWallTitleInput.checked = showWallTitle;
+
+  const wallTitleCssInput = document.querySelector('[data-role="wallTitleCss"]');
+  if (wallTitleCssInput) wallTitleCssInput.value = wallTitleCss.trim();
+
+  const clipLabelCssInput = document.querySelector('[data-role="clipLabelCss"]');
+  if (clipLabelCssInput) clipLabelCssInput.value = clipLabelCss.trim();
 
   const restoredGap = Number(parsed.gridGap ?? 0);
   applyGridGap(restoredGap);
@@ -2294,6 +2596,8 @@ function applyLoadedConfig(parsed, options = {}) {
     cfg.fadeMode   = savedCfg.fadeMode || "none";
     cfg.fadeIn     = Number(savedCfg.fadeIn ?? 0);
     cfg.fadeOut    = Number(savedCfg.fadeOut ?? 0);
+    cfg.fadeAudio  = Boolean(savedCfg.fadeAudio);
+    cfg.showLabel  = Boolean(savedCfg.showLabel);
     cfg._audioMuted = Boolean(savedCfg.muted);
 
     cfg.ui.titleInput.value = cfg.title;
@@ -2308,12 +2612,13 @@ function applyLoadedConfig(parsed, options = {}) {
     cfg.ui.outLoopStart.textContent = formatTime(cfg.loopStart);
     cfg.ui.outLoopEnd.textContent = formatTime(cfg.loopEnd);
     cfg.ui.outVolume.textContent = cfg.volume.toFixed(2);
+    if (cfg.ui.fadeAudioInput) cfg.ui.fadeAudioInput.checked = cfg.fadeAudio;
+    if (cfg.ui.showLabelInput) cfg.ui.showLabelInput.checked = cfg.showLabel;
 
     video.volume = 0;
     video.muted = true;
     video.playbackRate = cfg.playbackRate;
 
-    audio.volume = cfg.volume;
     audio.playbackRate = cfg.playbackRate;
     audio.muted = cfg._audioMuted;
 
@@ -2322,6 +2627,7 @@ function applyLoadedConfig(parsed, options = {}) {
     applyVideoPosition(cfg, video);
     applyVideoFilter(cfg, video);
     applyFadeAppearance(cfg);
+    applyClipLabelVisibility(cfg);
 
     cfg.ui.refreshPositionOutputs();
     cfg.ui.refreshFilterOutputs();
@@ -2349,6 +2655,7 @@ function applyLoadedConfig(parsed, options = {}) {
     cfg.ui.refreshMuteState();
     cfg.ui.refreshPlayPauseButton();
     cfg.ui.refreshCurrentTimeOutput();
+    updateAudioFade(cfg, video);
     updateFadeOverlay(cfg, video);
     updateLabel(cfg, video);
   });
@@ -2390,7 +2697,6 @@ async function loadConfigFromFileInput(file) {
   }
 }
 
-
 async function loadStartupConfigFromApp() {
   try {
     const response = await fetch("/api/startup-config", { cache: "no-store" });
@@ -2430,9 +2736,9 @@ async function unlockPlayback() {
     video.muted = true;
     video.playbackRate = cfg.playbackRate;
 
-    audio.volume = cfg.volume;
     audio.playbackRate = cfg.playbackRate;
     audio.muted = !!cfg._audioMuted;
+    updateAudioFade(cfg, video);
 
     syncNativeLoop(video, cfg);
 
@@ -2618,189 +2924,193 @@ function handleFullscreenChange() {
 /* ────────────────────────────────────────────────────────────────────────── */
 
 (async function initApp() {
-await fetchAppInfo();
+  await fetchAppInfo();
 
-createLayoutUI();
-configs.forEach((cfg) => createControlUI(cfg));
+  applyDynamicTextStyles();
+  ensureWallTitleElement();
+  updateWallTitleOverlay();
+  createSplashOverlay();
 
-document.querySelectorAll(".video-cell").forEach((cell, index) => {
-  const cfg = configs[index];
+  createLayoutUI();
+  configs.forEach((cfg) => createControlUI(cfg));
 
-  cell.addEventListener("pointerdown", (e) => {
-    if (hud.classList.contains("hidden")) {
-      onCellPointerDown(e, cfg);
-    } else {
-      toggleHud(false);
-    }
-  });
+  document.querySelectorAll(".video-cell").forEach((cell, index) => {
+    const cfg = configs[index];
 
-  cell.addEventListener("pointermove", onCellPointerMove);
-  cell.addEventListener("pointerup", onCellPointerUp);
-  cell.addEventListener("pointercancel", onCellPointerUp);
-
-  cell.addEventListener("wheel", (e) => onCellWheel(e, cfg), { passive: false });
-
-  cell.addEventListener("dblclick", () => {
-    if (!hud.classList.contains("hidden")) return;
-    resetVideoPosition(cfg, getVideoByConfig(cfg));
-    if (cfg.ui) cfg.ui.refreshPositionOutputs();
-    showActionIcon("↺");
-    setStatus(`${cfg.title}: position reset.`);
-  });
-});
-
-closeHudBtn.addEventListener("click", () => toggleHud(false));
-closeHelpBtn.addEventListener("click", () => toggleHelp(false));
-saveConfigBtn.addEventListener("click", saveConfigToFile);
-
-toggleMuteAllBtn.addEventListener("click", toggleMuteAll);
-togglePauseAllBtn.addEventListener("click", togglePauseAll);
-fullscreenBtn.addEventListener("click", toggleFullscreen);
-exitAppBtn?.addEventListener("click", exitApplication);
-
-quickShowHudBtn.addEventListener("click", () => toggleHud(true));
-quickPauseBtn.addEventListener("click", togglePauseAll);
-quickMuteBtn.addEventListener("click", toggleMuteAll);
-quickLayoutBtn.addEventListener("click", toggleLayoutMode);
-quickHelpBtn.addEventListener("click", () => toggleHelp());
-quickFullscreenBtn.addEventListener("click", toggleFullscreen);
-quickExitBtn?.addEventListener("click", exitApplication);
-
-loadConfigInput.addEventListener("change", async (e) => {
-  const file = e.target.files && e.target.files[0];
-  await loadConfigFromFileInput(file);
-  loadConfigInput.value = "";
-});
-
-quickLoadConfigInput.addEventListener("change", async (e) => {
-  const file = e.target.files && e.target.files[0];
-  await loadConfigFromFileInput(file);
-  quickLoadConfigInput.value = "";
-});
-
-document.addEventListener("pointerdown", (e) => {
-  if (e.target.closest("#hud")) return;
-  unlockPlayback();
-});
-
-document.addEventListener("mousemove", () => {
-  if (hud.classList.contains("hidden")) showQuickBar();
-});
-
-document.addEventListener("fullscreenchange", handleFullscreenChange);
-window.addEventListener("resize", handleFullscreenChange);
-
-document.addEventListener("keydown", async (event) => {
-  const activeTag = document.activeElement?.tagName;
-  const isTyping = activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT";
-
-  if (!isTyping) await unlockPlayback();
-
-  if (event.code === "Enter") {
-    if (!isTyping) {
-      event.preventDefault();
-      toggleHud();
-    }
-    return;
-  }
-
-  if (isTyping) return;
-
-  if (event.altKey && ["Digit1", "Digit2", "Digit3", "Digit4"].includes(event.code)) {
-    event.preventDefault();
-    setActivePanelCount(Number(event.code.replace("Digit", "")));
-    return;
-  }
-
-  if (event.code === "Space" || event.code === "KeyP") {
-    event.preventDefault();
-    togglePauseAll();
-    return;
-  }
-
-  if (event.code === "KeyL") {
-    event.preventDefault();
-    toggleLayoutMode();
-    return;
-  }
-
-  if (event.ctrlKey && ["Digit1", "Digit2", "Digit3", "Digit4"].includes(event.code)) {
-    event.preventDefault();
-    soloVideo(Number(event.code.replace("Digit", "")) - 1);
-    return;
-  }
-
-  if (event.shiftKey && ["Digit1", "Digit2", "Digit3", "Digit4"].includes(event.code)) {
-    event.preventDefault();
-    togglePauseSingle(Number(event.code.replace("Digit", "")) - 1);
-    return;
-  }
-
-  switch (event.code) {
-    case "KeyH":
-      event.preventDefault();
-      toggleHelp();
-      break;
-    case "Escape":
-      event.preventDefault();
-      clearSoloMode();
-      setStatus("Solo view cleared.");
-      break;
-    case "KeyQ":
-      if (event.ctrlKey || event.metaKey) {
-        event.preventDefault();
-        await exitApplication();
+    cell.addEventListener("pointerdown", (e) => {
+      if (hud.classList.contains("hidden")) {
+        onCellPointerDown(e, cfg);
+      } else {
+        toggleHud(false);
       }
-      break;
-    case "KeyM":
+    });
+
+    cell.addEventListener("pointermove", onCellPointerMove);
+    cell.addEventListener("pointerup", onCellPointerUp);
+    cell.addEventListener("pointercancel", onCellPointerUp);
+
+    cell.addEventListener("wheel", (e) => onCellWheel(e, cfg), { passive: false });
+
+    cell.addEventListener("dblclick", () => {
+      if (!hud.classList.contains("hidden")) return;
+      resetVideoPosition(cfg, getVideoByConfig(cfg));
+      if (cfg.ui) cfg.ui.refreshPositionOutputs();
+      showActionIcon("↺");
+      setStatus(`${cfg.title}: position reset.`);
+    });
+  });
+
+  closeHudBtn.addEventListener("click", () => toggleHud(false));
+  closeHelpBtn.addEventListener("click", () => toggleHelp(false));
+  saveConfigBtn.addEventListener("click", saveConfigToFile);
+
+  toggleMuteAllBtn.addEventListener("click", toggleMuteAll);
+  togglePauseAllBtn.addEventListener("click", togglePauseAll);
+  fullscreenBtn.addEventListener("click", toggleFullscreen);
+  exitAppBtn?.addEventListener("click", exitApplication);
+
+  quickShowHudBtn.addEventListener("click", () => toggleHud(true));
+  quickPauseBtn.addEventListener("click", togglePauseAll);
+  quickMuteBtn.addEventListener("click", toggleMuteAll);
+  quickLayoutBtn.addEventListener("click", toggleLayoutMode);
+  quickHelpBtn.addEventListener("click", () => toggleHelp());
+  quickFullscreenBtn.addEventListener("click", toggleFullscreen);
+  quickExitBtn?.addEventListener("click", exitApplication);
+
+  loadConfigInput.addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    await loadConfigFromFileInput(file);
+    loadConfigInput.value = "";
+  });
+
+  quickLoadConfigInput.addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    await loadConfigFromFileInput(file);
+    quickLoadConfigInput.value = "";
+  });
+
+  document.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("#hud")) return;
+    unlockPlayback();
+  });
+
+  document.addEventListener("mousemove", () => {
+    if (hud.classList.contains("hidden")) showQuickBar();
+  });
+
+  document.addEventListener("fullscreenchange", handleFullscreenChange);
+  window.addEventListener("resize", handleFullscreenChange);
+
+  document.addEventListener("keydown", async (event) => {
+    const activeTag = document.activeElement?.tagName;
+    const isTyping = activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT";
+
+    if (!isTyping) await unlockPlayback();
+
+    if (event.code === "Enter") {
+      if (!isTyping) {
+        event.preventDefault();
+        toggleHud();
+      }
+      return;
+    }
+
+    if (isTyping) return;
+
+    if (event.altKey && ["Digit1", "Digit2", "Digit3", "Digit4"].includes(event.code)) {
       event.preventDefault();
-      toggleMuteAll();
-      break;
-    case "Digit1":
+      setActivePanelCount(Number(event.code.replace("Digit", "")));
+      return;
+    }
+
+    if (event.code === "Space" || event.code === "KeyP") {
       event.preventDefault();
-      toggleMuteSingle(0);
-      break;
-    case "Digit2":
+      togglePauseAll();
+      return;
+    }
+
+    if (event.code === "KeyL") {
       event.preventDefault();
-      toggleMuteSingle(1);
-      break;
-    case "Digit3":
+      toggleLayoutMode();
+      return;
+    }
+
+    if (event.ctrlKey && ["Digit1", "Digit2", "Digit3", "Digit4"].includes(event.code)) {
       event.preventDefault();
-      toggleMuteSingle(2);
-      break;
-    case "Digit4":
+      soloVideo(Number(event.code.replace("Digit", "")) - 1);
+      return;
+    }
+
+    if (event.shiftKey && ["Digit1", "Digit2", "Digit3", "Digit4"].includes(event.code)) {
       event.preventDefault();
-      toggleMuteSingle(3);
-      break;
+      togglePauseSingle(Number(event.code.replace("Digit", "")) - 1);
+      return;
+    }
+
+    switch (event.code) {
+      case "KeyH":
+        event.preventDefault();
+        toggleHelp();
+        break;
+      case "Escape":
+        event.preventDefault();
+        clearSoloMode();
+        setStatus("Solo view cleared.");
+        break;
+      case "KeyQ":
+        if (event.ctrlKey || event.metaKey) {
+          event.preventDefault();
+          await exitApplication();
+        }
+        break;
+      case "KeyM":
+        event.preventDefault();
+        toggleMuteAll();
+        break;
+      case "Digit1":
+        event.preventDefault();
+        toggleMuteSingle(0);
+        break;
+      case "Digit2":
+        event.preventDefault();
+        toggleMuteSingle(1);
+        break;
+      case "Digit3":
+        event.preventDefault();
+        toggleMuteSingle(2);
+        break;
+      case "Digit4":
+        event.preventDefault();
+        toggleMuteSingle(3);
+        break;
+    }
+  });
+
+  applyLayoutMode("4x1");
+  setHudVisible(true);
+  updateGlobalButtons();
+  setDocumentTitle(currentConfigName);
+  setStatus(introMessage);
+  applyConfigOrder();
+  loadStartupConfigFromApp();
+
+  function hideCursor() {
+    const style = document.getElementById("__cursorHideStyle")
+      || Object.assign(document.createElement("style"), { id: "__cursorHideStyle" });
+
+    style.textContent = "* { cursor: none !important; }";
+    document.head.appendChild(style);
   }
-});
 
-applyLayoutMode("4x1");
-setHudVisible(true);
-updateGlobalButtons();
-setDocumentTitle(currentConfigName);
-setStatus(introMessage);
-applyConfigOrder();
-loadStartupConfigFromApp();
+  function showCursor() {
+    document.getElementById("__cursorHideStyle")?.remove();
+  }
 
-function hideCursor() {
-  const style = document.getElementById("__cursorHideStyle")
-    || Object.assign(document.createElement("style"), { id: "__cursorHideStyle" });
+  document.addEventListener("mousemove", () => {
+    showCursor();
+    clearTimeout(cursorTimer);
+    cursorTimer = setTimeout(hideCursor, CURSOR_HIDE_DELAY);
+  });
 
-  style.textContent = "* { cursor: none !important; }";
-  document.head.appendChild(style);
-}
-
-function showCursor() {
-  document.getElementById("__cursorHideStyle")?.remove();
-}
-
-document.addEventListener("mousemove", () => {
-  showCursor();
-  clearTimeout(cursorTimer);
-  cursorTimer = setTimeout(hideCursor, CURSOR_HIDE_DELAY);
-});
-
-updateGlobalButtons();
-
+  updateGlobalButtons();
 })();

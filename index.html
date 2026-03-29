@@ -34,6 +34,7 @@
           <button id="toggleMuteAllBtn" type="button">Mute All</button>
           <button id="togglePauseAllBtn" type="button">Pause All</button>
           <button id="fullscreenBtn" type="button">Fullscreen</button>
+          <!-- <button id="exitAppBtn" class="danger-button" type="button" hidden>Exit App</button> -->
           <button id="saveConfig" type="button">Save Config</button>
 
           <label class="inline-file-button">
@@ -51,7 +52,8 @@
           <li><b>M</b> toggles mute all. <b>1</b>-<b>4</b> mute/unmute single video.</li>
           <li><b>Shift + 1</b>-<b>4</b> pause/resume single video. <b>Ctrl + 1</b>-<b>4</b> toggles solo view.</li>
           <li><b>Alt + 1</b>-<b>4</b> shows first N panels. Close menu to drag videos.</li>
-          <li><b>Drag and drop</b> active panels in viewport for changing order</li>
+          <li><b>Drag and drop</b> viewport icons to change panel order.</li>
+          <li><b>Startup splash</b> closes with any key, click, or automatically after 5 seconds.</li>
         </ul>
       </div>
 
@@ -82,13 +84,17 @@
           <div><b>Scroll (menu closed)</b></div><div>Zoom video within its cell (100–300%)</div>
           <div><b>Double-click (menu closed)</b></div><div>Reset pan &amp; zoom to default</div>
           <div><b>Viewport Icons</b></div><div>Click icons 1–4 to show first N panels, drag icons horizontally to reorder panels and menu sections</div>
-          <div><b>Fade</b></div><div>Per-video fade in/out to black or white at video or loop boundaries</div>
+          <div><b>Fade</b></div><div>Per-video fade in/out to black or white at video or loop boundaries, optional also for audio</div>
+          <div><b>Labels</b></div><div>Clip labels can be shown per clip, and wall title can be shown centered at the top</div>
+          <div><b>Font / CSS</b></div><div>Title and label styling can be edited in the viewport section and is saved in config files</div>
           <div><b>Mouse move</b></div><div>Show quick action bar when menu is hidden</div>
         </div>
 
         <p class="help-note">
           Load a config to start.
-          Saving config stores config name, layout mode, current panel visibility, panel order, title, source mode, URL, loop points, volume, mute state, playback speed, pan position, zoom, filters, and fade settings.
+          Saving config stores config name, layout mode, current panel visibility, panel order, wall title visibility,
+          title CSS, label CSS, per-clip label visibility, source mode, URL, loop points, volume, mute state,
+          playback speed, pan position, zoom, filters, and fade settings including audio fade.
           Browser-selected local files cannot be restored automatically after reload for security reasons, so those entries are marked and must be re-selected.
         </p>
       </div>
@@ -107,6 +113,7 @@
       <button id="quickLayoutBtn" type="button" title="Switch Layout">4x1</button>
       <button id="quickHelpBtn" type="button" title="Help">?</button>
       <button id="quickFullscreenBtn" type="button" title="Fullscreen">⛶</button>
+      <!-- <button id="quickExitBtn" class="danger-button" type="button" title="Exit App" hidden>⏻</button> -->
 
       <label class="inline-file-button quick-load-label" title="Load Config">
         <input id="quickLoadConfigInput" type="file" accept="application/json" hidden />
