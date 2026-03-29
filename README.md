@@ -10,24 +10,7 @@ A browser-based 4-video wall player for up to four simultaneous videos, with ind
 - Up to 4 simultaneous video panels
 - Layouts: `4x1`, `2x2`, `2x1-left`, `2x1-right`
 - Adjustable grid gap (`0–32px`)
-- Per-video controls:
-  - title
-  - optional clip label visibility
-  - source via URL or local file
-  - volume, mute, play / pause
-  - audio offset (`-30s` to `+30s`)
-  - playback speed (`0.25×–4×`) with presets
-  - loop start / loop end
-  - seek / current time
-  - pan X / pan Y
-  - zoom (`100–300%`)
-  - filters: brightness, contrast, saturation, grayscale
-  - fade settings:
-    - mode (`off`, `to black`, `to white`)
-    - fade-in duration
-    - fade-out duration
-    - optional fade applied to audio as well
-  - reset for pan/zoom and filters
+- Many per-video controls
 - Global controls:
   - play / pause all
   - mute / unmute all
@@ -40,7 +23,6 @@ A browser-based 4-video wall player for up to four simultaneous videos, with ind
   - optional centered wall title overlay
   - editable CSS for wall title and clip labels
 - Solo mode per video
-- Active panel count (`1–4` visible panels)
 - Panel order controls:
   - drag-and-drop reordering via viewport panel icons
   - reordered presentation is reflected in both viewport and HUD control order
@@ -49,9 +31,8 @@ A browser-based 4-video wall player for up to four simultaneous videos, with ind
   - scroll to zoom
   - quick action bar
 - Help overlay
-- Toast / action overlay feedback
 - Save / load JSON configs
-- Config persistence for layout gap, panel order, active panel count, playback, audio offset, pan/zoom, filters, fades, title visibility, label visibility, and editable text CSS
+- Config persistence for settings
 - Local-file aware restore behavior
 
 ---
