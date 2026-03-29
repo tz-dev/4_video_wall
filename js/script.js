@@ -290,7 +290,7 @@ function ensureFadeOverlay(cfg) {
     overlay.style.bottom = "0";
     overlay.style.pointerEvents = "none";
     overlay.style.opacity = "0";
-    overlay.style.transition = "opacity 0.03s linear";
+    overlay.style.transition = "none";
     overlay.style.zIndex = "2";
     cell.appendChild(overlay);
   }
@@ -307,16 +307,7 @@ function ensureFadeOverlay(cfg) {
 function applyFadeAppearance(cfg) {
   const overlay = ensureFadeOverlay(cfg);
   if (!overlay) return;
-
-  if (cfg._fadeHold) {
-    return;
-  }
-
-  if (cfg.fadeMode === "white") {
-    overlay.style.background = "#fff";
-  } else {
-    overlay.style.background = "#000";
-  }
+  overlay.style.background = cfg.fadeMode === "white" ? "#fff" : "#000";
 }
 
 function getPlaybackSegment(cfg, video) {
@@ -415,38 +406,168 @@ function normalizeFadeTimes(cfg, video, changedKey = null) {
   updateFadeOverlay(cfg, video);
 }
 
+function resetFadeRuntime(cfg) {
+  cfg._fadeTransition = null;
+  cfg._loopTransitionRunning = false;
+  cfg._loopWaitForSeek = false;
+  cfg._loopResumeFadeInAfterPlay = false;
+  cfg._loopTriggeredForCycle = false;
+  cfg._pausedAtTs = 0;
+}
+
+function beginFadeTransition(cfg, fromOpacity, toOpacity, durationSec, onComplete = null) {
+  cfg._fadeTransition = {
+    from: clamp(fromOpacity, 0, 1),
+    to: clamp(toOpacity, 0, 1),
+    durationMs: Math.max(0, Number(durationSec || 0) * 1000),
+    startedAt: performance.now(),
+    onComplete
+  };
+}
+
+function getCurrentTransitionOpacity(cfg) {
+  const tr = cfg._fadeTransition;
+  if (!tr) return null;
+
+  if (tr.durationMs <= 0) {
+    return tr.to;
+  }
+
+  const now = performance.now();
+  const progress = clamp((now - tr.startedAt) / tr.durationMs, 0, 1);
+  return tr.from + (tr.to - tr.from) * progress;
+}
+
+function advanceFadeTransition(cfg) {
+  const tr = cfg._fadeTransition;
+  if (!tr) return false;
+
+  if (tr.durationMs <= 0) {
+    const done = tr.onComplete;
+    cfg._fadeTransition = null;
+    if (typeof done === "function") done();
+    return true;
+  }
+
+  const now = performance.now();
+  const progress = clamp((now - tr.startedAt) / tr.durationMs, 0, 1);
+
+  if (progress >= 1) {
+    const done = tr.onComplete;
+    cfg._fadeTransition = null;
+    if (typeof done === "function") done();
+    return true;
+  }
+
+  return false;
+}
+
+function getPassiveFadeOpacity(cfg, video) {
+  if (cfg.fadeMode === "none") return 0;
+
+  const segment = getPlaybackSegment(cfg, video);
+  const t = Number(video.currentTime || 0);
+  const fadeIn = Math.max(0, Number(cfg.fadeIn || 0));
+  const fadeOut = Math.max(0, Number(cfg.fadeOut || 0));
+
+  let opacity = 0;
+
+  if (fadeIn > 0 && t >= segment.start && t < segment.start + fadeIn) {
+    const p = (t - segment.start) / fadeIn;
+    opacity = Math.max(opacity, clamp(1 - p, 0, 1));
+  }
+
+  if (
+    fadeOut > 0 &&
+    Number.isFinite(segment.end) &&
+    t >= segment.end - fadeOut &&
+    t <= segment.end
+  ) {
+    const p = (segment.end - t) / fadeOut;
+    opacity = Math.max(opacity, clamp(1 - p, 0, 1));
+  }
+
+  return clamp(opacity, 0, 1);
+}
+
+function setFadeOverlayOpacity(cfg, opacity) {
+  const overlay = ensureFadeOverlay(cfg);
+  if (!overlay) return;
+  overlay.style.opacity = String(clamp(opacity, 0, 1));
+}
+
 function updateFadeOverlay(cfg, video) {
   const overlay = ensureFadeOverlay(cfg);
   if (!overlay) return;
 
-  if (cfg._fadeHold) {
-    return;
-  }
-
   if (cfg.fadeMode === "none") {
+    overlay.style.transition = "none";
     overlay.style.opacity = "0";
     return;
   }
 
+  overlay.style.background = cfg.fadeMode === "white" ? "#fff" : "#000";
+  overlay.style.transition = "none";
+
+  if (cfg._fadeTransition) {
+    setFadeOverlayOpacity(cfg, getCurrentTransitionOpacity(cfg));
+    return;
+  }
+
+  setFadeOverlayOpacity(cfg, getPassiveFadeOpacity(cfg, video));
+}
+
+function startManualLoopTransition(cfg, video) {
+  if (cfg._loopTransitionRunning) return;
+  if (cfg.fadeMode === "none") return;
+
   const segment = getPlaybackSegment(cfg, video);
-  const t = Number(video.currentTime || 0);
+  if (!segment.isLoop || !Number.isFinite(segment.end)) return;
 
-  let opacity = 0;
+  cfg._loopTransitionRunning = true;
+  cfg._loopWaitForSeek = false;
+  cfg._loopResumeFadeInAfterPlay = false;
 
-  const fadeIn = Math.max(0, Number(cfg.fadeIn || 0));
+  const startOpacity = getPassiveFadeOpacity(cfg, video);
   const fadeOut = Math.max(0, Number(cfg.fadeOut || 0));
 
-  if (fadeIn > 0 && t >= segment.start && t <= segment.start + fadeIn) {
-    const progress = (t - segment.start) / fadeIn;
-    opacity = Math.max(opacity, clamp(1 - progress, 0, 1));
-  }
+  beginFadeTransition(cfg, startOpacity, 1, fadeOut, () => {
+    cfg._loopWaitForSeek = true;
+    video.currentTime = segment.start;
+  });
 
-  if (fadeOut > 0 && Number.isFinite(segment.end) && t >= segment.end - fadeOut && t <= segment.end) {
-    const progress = (segment.end - t) / fadeOut;
-    opacity = Math.max(opacity, clamp(1 - progress, 0, 1));
-  }
+  updateFadeOverlay(cfg, video);
+}
 
-  overlay.style.opacity = String(clamp(opacity, 0, 1));
+function continueFadeInAfterSeek(cfg, video) {
+  const fadeIn = Math.max(0, Number(cfg.fadeIn || 0));
+
+  beginFadeTransition(cfg, 1, 0, fadeIn, () => {
+    cfg._loopTransitionRunning = false;
+    cfg._loopWaitForSeek = false;
+    cfg._loopResumeFadeInAfterPlay = false;
+    cfg._loopTriggeredForCycle = false;
+    updateFadeOverlay(cfg, video);
+  });
+
+  updateFadeOverlay(cfg, video);
+}
+
+function cancelManualLoopTransition(cfg, video) {
+  const overlay = ensureFadeOverlay(cfg);
+  if (overlay) overlay.style.transition = "none";
+
+  cfg._loopWaitForSeek = false;
+  cfg._loopResumeFadeInAfterPlay = false;
+  cfg._loopTransitionRunning = false;
+
+  if (cfg._fadeTransition) {
+    const frozen = getCurrentTransitionOpacity(cfg);
+    cfg._fadeTransition = null;
+    setFadeOverlayOpacity(cfg, frozen ?? getPassiveFadeOpacity(cfg, video));
+  } else {
+    updateFadeOverlay(cfg, video);
+  }
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -804,8 +925,6 @@ function applyVisiblePanelState() {
 function setActivePanelCount(n) {
   if (n < 1 || n > 4) return;
 
-  // 4 bedeutet niemals eigener "panel count mode",
-  // sondern immer normaler Vollzustand = alle Panels sichtbar.
   if (n === 4) {
     activePanelCount = null;
     applyVisiblePanelState();
@@ -814,7 +933,6 @@ function setActivePanelCount(n) {
     return;
   }
 
-  // Gleiches N erneut = zurück auf alle sichtbar
   if (activePanelCount === n) {
     activePanelCount = null;
     applyVisiblePanelState();
@@ -954,7 +1072,6 @@ function createLayoutUI() {
   const autoplayInput = wrap.querySelector('[data-role="autoplay"]');
 
   layoutSelect.value = currentLayoutMode;
-
   autoplayInput.checked = autoplayEnabled;
 
   layoutSelect.addEventListener("change", () => {
@@ -1040,6 +1157,30 @@ function startFadeAnimationLoop(cfg, video) {
 
   const tick = () => {
     if (!cfg._fadeLoopActive) return;
+
+    const segment = getPlaybackSegment(cfg, video);
+    const fadeOut = Math.max(0, Number(cfg.fadeOut || 0));
+    const hasManualLoopFade =
+      cfg.fadeMode !== "none" &&
+      segment.isLoop &&
+      Number.isFinite(segment.end) &&
+      fadeOut > 0;
+
+    if (
+      hasManualLoopFade &&
+      !cfg._loopTransitionRunning &&
+      !cfg._loopTriggeredForCycle &&
+      video.currentTime >= segment.end - fadeOut &&
+      video.currentTime < segment.end
+    ) {
+      cfg._loopTriggeredForCycle = true;
+      startManualLoopTransition(cfg, video);
+    }
+
+    if (cfg._fadeTransition) {
+      advanceFadeTransition(cfg);
+    }
+
     updateFadeOverlay(cfg, video);
 
     if (!video.paused && !video.ended) {
@@ -1061,90 +1202,17 @@ function stopFadeAnimationLoop(cfg) {
   }
 }
 
-function setFadeOverlayOpacity(cfg, opacity) {
-  const overlay = ensureFadeOverlay(cfg);
-  if (!overlay) return;
-  overlay.style.opacity = String(clamp(opacity, 0, 1));
-}
-
-function holdFadeOverlay(cfg, opacity = 1) {
-  cfg._fadeHold = true;
-  setFadeOverlayOpacity(cfg, opacity);
-}
-
-function releaseFadeOverlay(cfg) {
-  cfg._fadeHold = false;
-}
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function runManualLoopTransition(cfg, video) {
-  if (cfg._loopTransitionRunning) return;
-  cfg._loopTransitionRunning = true;
-
-  const overlay = ensureFadeOverlay(cfg);
-  if (!overlay) {
-    video.currentTime = cfg.loopStart;
-    cfg._loopTransitionRunning = false;
-    return;
-  }
-
-  const fadeOut = Math.max(0, Number(cfg.fadeOut || 0));
-  const fadeIn = Math.max(0, Number(cfg.fadeIn || 0));
-  const wasPaused = video.paused;
-
-  cfg._fadeHold = true;
-
-  overlay.style.background = cfg.fadeMode === "white" ? "#fff" : "#000";
-
-  if (fadeOut > 0) {
-    overlay.style.transition = `opacity ${fadeOut}s linear`;
-    overlay.style.opacity = "1";
-    await wait(fadeOut * 1000);
-  } else {
-    overlay.style.transition = "none";
-    overlay.style.opacity = "1";
-    await wait(0);
-  }
-
-  video.currentTime = cfg.loopStart;
-
-  await new Promise((resolve) => {
-    const done = () => {
-      video.removeEventListener("seeked", done);
-      resolve();
-    };
-    video.addEventListener("seeked", done, { once: true });
-  });
-
-  if (!wasPaused) {
-    try { await video.play(); } catch {}
-  }
-
-  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-  if (fadeIn > 0) {
-    overlay.style.transition = `opacity ${fadeIn}s linear`;
-    overlay.style.opacity = "0";
-    await wait(fadeIn * 1000);
-  } else {
-    overlay.style.transition = "none";
-    overlay.style.opacity = "0";
-    await wait(0);
-  }
-
-  cfg._fadeHold = false;
-  cfg._loopTransitionRunning = false;
-  updateFadeOverlay(cfg, video);
-}
-
 function createControlUI(cfg) {
   const video = getVideoByConfig(cfg);
   const wrap = document.createElement("div");
-  cfg._fadeHold = false;
+  cfg._fadeLoopActive = false;
+  cfg._fadeRaf = null;
+  cfg._fadeTransition = null;
   cfg._loopTransitionRunning = false;
+  cfg._loopWaitForSeek = false;
+  cfg._loopResumeFadeInAfterPlay = false;
+  cfg._loopTriggeredForCycle = false;
+  cfg._pausedAtTs = 0;
   wrap.className = "video-controls";
 
   wrap.innerHTML = `
@@ -1608,6 +1676,7 @@ function createControlUI(cfg) {
     loopEndInput.value = cfg.loopEnd;
     applyLoopBounds();
     syncNativeLoop(video, cfg);
+    updateFadeOverlay(cfg, video);
   });
 
   wrap.querySelector('[data-action="resetPosition"]').addEventListener("click", () => {
@@ -1641,6 +1710,7 @@ function createControlUI(cfg) {
       video.duration || (Number.isFinite(cfg.loopStart) ? cfg.loopStart : 0)
     );
 
+    resetFadeRuntime(cfg);
     applyLoopBounds();
     refreshPlayPauseButton();
     refreshCurrentTimeOutput();
@@ -1656,43 +1726,84 @@ function createControlUI(cfg) {
 
     refreshCurrentTimeOutput();
 
+    const segment = getPlaybackSegment(cfg, video);
+    const fadeOut = Math.max(0, Number(cfg.fadeOut || 0));
+    const hasManualLoopFade =
+      cfg.fadeMode !== "none" &&
+      segment.isLoop &&
+      Number.isFinite(segment.end) &&
+      fadeOut > 0;
+
     if (
-      Number.isFinite(cfg.loopEnd) &&
-      video.currentTime >= cfg.loopEnd &&
-      !cfg._loopTransitionRunning
+      segment.isLoop &&
+      Number.isFinite(segment.end) &&
+      !hasManualLoopFade &&
+      video.currentTime >= segment.end
     ) {
-      refreshCurrentTimeOutput();
-
-      if (cfg.fadeMode !== "none" && (cfg.fadeOut > 0 || cfg.fadeIn > 0)) {
-        runManualLoopTransition(cfg, video);
-      } else {
-        video.currentTime = cfg.loopStart;
-        if (!video.paused) video.play().catch(() => {});
-      }
-
+      cfg._loopTriggeredForCycle = false;
+      video.currentTime = segment.start;
+      if (!video.paused) video.play().catch(() => {});
+      updateFadeOverlay(cfg, video);
       return;
     }
-  });
 
-  video.addEventListener("ended", () => {
-    updateFadeOverlay(cfg, video);
-    stopFadeAnimationLoop(cfg);
-  });
-
-  video.addEventListener("seeked", () => {
-    if (!cfg._loopTransitionRunning) {
+    if (!cfg._fadeTransition) {
       updateFadeOverlay(cfg, video);
     }
   });
 
+  video.addEventListener("ended", () => {
+    stopFadeAnimationLoop(cfg);
+    cfg._loopTriggeredForCycle = false;
+    updateFadeOverlay(cfg, video);
+  });
+
+  video.addEventListener("seeked", () => {
+    if (cfg._loopWaitForSeek) {
+      cfg._loopWaitForSeek = false;
+
+      if (video.paused) {
+        cfg._loopResumeFadeInAfterPlay = true;
+        setFadeOverlayOpacity(cfg, 1);
+        return;
+      }
+
+      continueFadeInAfterSeek(cfg, video);
+      return;
+    }
+
+    updateFadeOverlay(cfg, video);
+  });
+
   video.addEventListener("play", () => {
     refreshPlayPauseButton();
+
+    if (cfg._fadeTransition && cfg._pausedAtTs) {
+      const pausedDelta = performance.now() - cfg._pausedAtTs;
+      cfg._fadeTransition.startedAt += pausedDelta;
+      cfg._pausedAtTs = 0;
+    }
+
+    if (cfg._loopResumeFadeInAfterPlay) {
+      cfg._loopResumeFadeInAfterPlay = false;
+      continueFadeInAfterSeek(cfg, video);
+    } else {
+      updateFadeOverlay(cfg, video);
+    }
+
     startFadeAnimationLoop(cfg, video);
   });
 
   video.addEventListener("pause", () => {
     refreshPlayPauseButton();
-    updateFadeOverlay(cfg, video);
+
+    if (cfg._fadeTransition) {
+      cfg._pausedAtTs = performance.now();
+      setFadeOverlayOpacity(cfg, getCurrentTransitionOpacity(cfg));
+    } else {
+      updateFadeOverlay(cfg, video);
+    }
+
     stopFadeAnimationLoop(cfg);
   });
   
@@ -1831,6 +1942,7 @@ function applyLoadedConfig(parsed, options = {}) {
     if (!cfg) return;
 
     const video = getVideoByConfig(cfg);
+    resetFadeRuntime(cfg);
 
     cfg.title = savedCfg.title || cfg.defaultTitle;
     cfg.loopStart = Number(savedCfg.loopStart ?? cfg.loopStart);
