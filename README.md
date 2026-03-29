@@ -2,7 +2,7 @@
 
 [Desktop app version (Windows)](https://drive.google.com/drive/folders/1R1BZmtSfM-5gCfLMulFZyMyiz9kh-R2E?usp=sharing)
 
-A browser-based 4-video wall player for up to four simultaneous videos, with independent looping, per-video audio, speed, pan, zoom, filter, and fade control, drag-and-drop panel reordering, solo mode, layout switching, fullscreen, keyboard shortcuts, JSON config save/load, and a live HUD.
+A browser-based 4-video wall player for up to four simultaneous videos, with independent looping, per-video audio, speed, pan, zoom, filters, fade-to-video and optional fade-to-audio, drag-and-drop panel reordering, solo mode, layout switching, splash screen, fullscreen, keyboard shortcuts, JSON config save/load, editable title/label CSS, and a live HUD.
 
 ## Features
 
@@ -11,6 +11,7 @@ A browser-based 4-video wall player for up to four simultaneous videos, with ind
 - Adjustable grid gap (`0–32px`)
 - Per-video controls:
   - title
+  - optional clip label visibility
   - source via URL or local file
   - volume, mute, play / pause
   - audio offset (`-30s` to `+30s`)
@@ -20,7 +21,11 @@ A browser-based 4-video wall player for up to four simultaneous videos, with ind
   - pan X / pan Y
   - zoom (`100–300%`)
   - filters: brightness, contrast, saturation, grayscale
-  - fade settings: mode (`off`, `to black`, `to white`), fade-in duration, fade-out duration
+  - fade settings:
+    - mode (`off`, `to black`, `to white`)
+    - fade-in duration
+    - fade-out duration
+    - optional fade applied to audio as well
   - reset for pan/zoom and filters
 - Global controls:
   - play / pause all
@@ -28,6 +33,11 @@ A browser-based 4-video wall player for up to four simultaneous videos, with ind
   - global playback speed with presets
   - layout switching
   - fullscreen
+  - desktop app exit button
+- Viewport controls:
+  - wall title text
+  - optional centered wall title overlay
+  - editable CSS for wall title and clip labels
 - Solo mode per video
 - Active panel count (`1–4` visible panels)
 - Panel order controls:
@@ -40,7 +50,7 @@ A browser-based 4-video wall player for up to four simultaneous videos, with ind
 - Help overlay
 - Toast / action overlay feedback
 - Save / load JSON configs
-- Config persistence for layout gap, panel order, active panel count, playback, audio offset, pan/zoom, filters, fades, and per-video settings
+- Config persistence for layout gap, panel order, active panel count, playback, audio offset, pan/zoom, filters, fades, title visibility, label visibility, and editable text CSS
 - Local-file aware restore behavior
 
 ---
@@ -69,6 +79,12 @@ Designed for installations, visual walls, live performance setups, moodboards, e
 │  └─ default.json
 ├─ css/
 │  └─ style.css
+├─ img/
+│  ├─ slpashscreen.png
+│  ├─ screenshot_hud.png
+│  ├─ screenshot_layout1.png
+│  ├─ screenshot_layout2.png
+│  └─ screenshot_layout3.png
 └─ js/
    └─ script.js
 ````
@@ -95,24 +111,27 @@ Then open [http://localhost:8080](http://localhost:8080).
 | Key                 | Action                                           |
 | ------------------- | ------------------------------------------------ |
 | `Enter`             | Toggle HUD                                       |
-| `H`                 | Toggle help overlay                              |
 | `Space` / `P`       | Pause / resume all                               |
-| `M`                 | Mute / unmute all                                |
 | `1` - `4`           | Mute / unmute video 1-4                          |
 | `Shift` + `1` - `4` | Pause / resume video 1-4                         |
 | `Ctrl` + `1` - `4`  | Toggle solo mode for video 1-4                   |
 | `Alt` + `1` - `4`   | Show only first N panels; press again to restore |
+| `H`                 | Toggle help overlay                              |
+| `M`                 | Mute / unmute all                                |
 | `L`                 | Cycle layout                                     |
 | `Esc`               | Exit solo mode                                   |
+| `Ctrl` + `Q`        | Exit desktop app                                 |
+| Any key             | Dismiss splash screen                            |
 
 ### Mouse Behavior (HUD hidden)
 
-| Action       | Effect                    |
-| ------------ | ------------------------- |
-| Move mouse   | Show quick action bar     |
-| Drag         | Pan video inside its cell |
-| Scroll       | Zoom (`100–300%`)         |
-| Double-click | Reset pan and zoom        |
+| Action       | Effect                           |
+| ------------ | -------------------------------- |
+| Click        | Unlock playback / dismiss splash |
+| Move mouse   | Show quick action bar            |
+| Drag         | Pan video inside its cell        |
+| Scroll       | Zoom (`100–300%`)                |
+| Double-click | Reset pan and zoom               |
 
 ### HUD Drag-and-Drop Behavior
 
@@ -132,6 +151,7 @@ The HUD contains global controls plus one control block per video.
 Each video block includes:
 
 * title and source loading (URL or local file)
+* optional clip label toggle
 * source status
 * volume
 * audio offset
@@ -144,20 +164,39 @@ Each video block includes:
 * jump/set loop controls
 * mute toggle
 * fade mode and fade timings
+* optional audio fade toggle
 * filter toggle with collapsible filter panel
 * filter reset
 * brightness, contrast, saturation, grayscale
 
 The viewport block includes:
 
+* wall title text
+* wall title visibility toggle
 * layout selector and next-layout button
 * panel order / panel visibility icons
 * grid gap
+* autoplay toggle
 * global playback speed with presets
+* collapsible font / CSS editor for:
+
+  * wall title CSS
+  * clip label CSS
 
 ---
 
 ## Behavior
+
+### Startup Splash Screen
+
+On launch, the app shows a fullscreen splash image from `img/slpashscreen.png`.
+
+* closes on any key press
+* closes on click anywhere
+* closes automatically after 5 seconds
+* also unlocks playback on dismissal
+
+This is useful for installations and kiosk-style startup presentation.
 
 ### Layouts
 
@@ -237,6 +276,7 @@ Fade parameters:
   * `white`
 * `fadeIn`
 * `fadeOut`
+* `fadeAudio`
 
 Behavior:
 
@@ -252,8 +292,33 @@ Behavior:
 
   * full video duration
   * or the loop segment
+* optional audio fade applies the same fade curve to the audio level
+* audio fading is multiplied against the current configured clip volume rather than replacing it
 
 This allows clips to fade cleanly within a custom loop window instead of only against the full media duration.
+
+### Wall Title and Clip Labels
+
+The app supports two independent text overlays:
+
+* **wall title**:
+
+  * edited in the viewport section
+  * optionally shown centered at the top of the screen
+* **clip labels**:
+
+  * toggled individually per clip
+  * still also shown when the HUD is open
+
+Both title and label styling are controlled through editable CSS text fields in the viewport section.
+
+Default styling uses:
+
+* sans-serif font
+* white text
+* black outline / stroke effect
+
+The custom CSS is saved in config files and restored on load.
 
 ---
 
@@ -268,10 +333,15 @@ Saved data includes:
 * grid gap
 * panel order
 * active panel count
+* autoplay state
+* wall title visibility
+* wall title CSS
+* clip label CSS
 * per video:
 
   * id
   * title
+  * clip label visibility
   * source mode / value / file name
   * loop start / loop end
   * volume
@@ -287,22 +357,7 @@ Saved data includes:
   * fade mode
   * fade-in duration
   * fade-out duration
-
-### Version notes
-
-* current config version: `7`
-* `gridGap` is stored globally
-* `panelOrder` is stored globally
-* `activePanelCount` is stored globally
-* audio offset is stored per video
-* filter values are stored per video
-* fade values are stored per video
-* loading restores saved gap and syncs it back to the HUD
-* loading restores saved panel order
-* loading restores saved visible-panel state
-* loading restores all saved audio offset values
-* loading restores all saved filter values
-* loading restores all saved fade values
+  * audio fade enabled / disabled
 
 ### Local file limitation
 
@@ -321,7 +376,7 @@ If a source was loaded via the browser file picker, the config can remember that
 
 On smaller screens, loop and pan fields stack vertically, filter controls flow naturally, fade controls stay readable, the HUD stays scrollable, and the quick bar remains compact.
 
-Best tested in modern Chromium-based browsers and Firefox. Browser differences may affect autoplay permissions, fullscreen handling, file URL behavior, codec support, filter rendering, fade timing smoothness, audio-offset resync behavior, and supported playback-rate range.
+Best tested in modern Chromium-based browsers and Firefox. Browser differences may affect autoplay permissions, fullscreen handling, file URL behavior, codec support, filter rendering, fade timing smoothness, audio-offset resync behavior, fade-audio smoothness, text-stroke rendering, and supported playback-rate range.
 
 ---
 
@@ -338,6 +393,8 @@ Common changes in `js/script.js`:
 * drag-and-drop reorder behavior
 * fade overlay behavior and loop-transition handling
 * audio/video sync handling for offset playback
+* splash screen timing / image path
+* default wall title and label CSS
 
 Common changes in `css/style.css`:
 
@@ -349,6 +406,8 @@ Common changes in `css/style.css`:
 * layout grid definitions
 * active panel count overrides
 * grid-gap related spacing
+* default label positioning
+* button styling including desktop exit button
 
 ---
 
@@ -363,6 +422,8 @@ Common changes in `css/style.css`:
 * Active panel count temporarily overrides the selected layout until cleared
 * Filter rendering depends on browser support, though modern Chromium-based browsers and Firefox generally work well
 * Fade smoothness at loop boundaries depends on browser seek/render timing and the exact transition strategy used in the current implementation
+* CSS text styling for wall title / labels is applied directly, so invalid CSS snippets can break the intended appearance until edited again
+* `-webkit-text-stroke` support may vary slightly across browsers
 
 ---
 
