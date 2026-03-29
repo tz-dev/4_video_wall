@@ -98,6 +98,8 @@ Designed for installations, visual walls, live performance setups, moodboards, e
 
 ### Quick start with Python
 
+Download project files, use cmd to enter the folder and run:
+
 ```bash
 python -m http.server 8080
 ```
