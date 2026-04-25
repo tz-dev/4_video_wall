@@ -87,6 +87,18 @@ python -m http.server 8080
 
 Then open [http://localhost:8080](http://localhost:8080).
 
+### Extended Python server (optional — auto-download clips)
+
+If you want URLs entered in the HUD to be **automatically downloaded and saved to `/clips`** before playback, use the included `server.py` instead:
+
+```bash
+python server.py
+```
+
+Then open [http://localhost:8000](http://localhost:8000).
+
+When a URL is loaded via the HUD, the server downloads the file to `./clips/` and the player uses the local copy. If the server is not running, the URL is loaded directly as usual — no functionality is lost.
+
 ---
 
 ## Controls
