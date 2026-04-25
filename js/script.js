@@ -1974,19 +1974,43 @@ function createControlUI(cfg) {
     setStatus(`Loaded local file for ${cfg.title}: ${file.name}`);
   });
 
-  wrap.querySelector('[data-action="loadUrl"]').addEventListener("click", () => {
-    const url = urlInput.value.trim();
-    if (!url) {
-      setStatus(`No URL entered for ${cfg.title}.`);
-      return;
-    }
-    setVideoSource(video, cfg, url, sourceStatus, {
-      mode: "url",
-      sourceValue: url,
-      sourceFileName: ""
+  wrap.querySelector('[data-action="loadUrl"]').addEventListener("click", async () => {
+      const url = urlInput.value.trim();
+      if (!url) {
+        setStatus(`No URL entered for ${cfg.title}.`);
+        return;
+      }
+
+      setStatus(`Downloading clip for ${cfg.title}…`);
+      try {
+        const res = await fetch("/api/download-clip", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, id: cfg.id })
+        });
+        const result = await res.json();
+
+        if (result.ok) {
+          setVideoSource(video, cfg, result.localPath, sourceStatus, {
+            mode: "url",
+            sourceValue: result.localPath,
+            sourceFileName: result.filename
+          });
+          setStatus(`Saved & loaded for ${cfg.title}: ${result.filename}`);
+          return;
+        }
+        throw new Error(result.error || "Download failed");
+
+      } catch (err) {
+        console.warn("Download to /clips failed, loading directly:", err);
+        setVideoSource(video, cfg, url, sourceStatus, {
+          mode: "url",
+          sourceValue: url,
+          sourceFileName: ""
+        });
+        setStatus(`Could not save clip (${err.message}), loaded URL directly.`);
+      }
     });
-    setStatus(`Loaded URL for ${cfg.title}.`);
-  });
 
   volumeInput.addEventListener("input", () => {
     cfg.volume = Number(volumeInput.value);
