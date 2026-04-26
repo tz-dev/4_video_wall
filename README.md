@@ -57,6 +57,8 @@ Designed for installations, visual walls, live performance setups, moodboards, e
 
 ```text
 ├─ index.html
+├─ server.py
+├─ server.bat
 ├─ configs/
 │  └─ default.json
 ├─ css/
